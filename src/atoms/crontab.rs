@@ -209,7 +209,9 @@ impl CrontabManager {
             }
 
             // 解析环境变量
-            if trimmed.contains('=') && !trimmed.starts_with('#') && !trimmed.contains(' ')
+            if trimmed.contains('=')
+                && !trimmed.starts_with('#')
+                && !trimmed.contains(' ')
                 && let Some((key, value)) = trimmed.split_once('=')
             {
                 env_vars.insert(key.to_string(), value.to_string());
@@ -669,7 +671,7 @@ PATH=/usr/bin:/bin
     #[test]
     fn test_validate_invalid_expressions() {
         let manager = CrontabManager::new();
-        
+
         assert!(manager.validate_expression("").is_err());
         assert!(manager.validate_expression("not a cron").is_err());
         assert!(manager.validate_expression("60 * * * *").is_err());
@@ -679,7 +681,7 @@ PATH=/usr/bin:/bin
     #[test]
     fn test_parse_crontab_empty() {
         let manager = CrontabManager::new();
-        
+
         let (tasks, other_lines, env_vars) = manager.parse_crontab("");
         assert_eq!(tasks.len(), 0);
         assert_eq!(other_lines.len(), 0);
@@ -690,7 +692,7 @@ PATH=/usr/bin:/bin
     #[test]
     fn test_normalize_expression_edge_cases() {
         let manager = CrontabManager::new();
-        
+
         assert_eq!(manager.normalize_expression("@reboot"), "@reboot");
         assert_eq!(manager.normalize_expression(""), "");
     }
@@ -699,7 +701,7 @@ PATH=/usr/bin:/bin
     #[test]
     fn test_to_schedule_format_monthly() {
         let manager = CrontabManager::new();
-        
+
         assert_eq!(manager.to_schedule_format("@monthly"), "0 0 0 1 * *");
     }
 
@@ -707,12 +709,11 @@ PATH=/usr/bin:/bin
     #[test]
     fn test_build_crontab_with_env() {
         let manager = CrontabManager::new();
-        
+
         let mut env_vars = HashMap::new();
         env_vars.insert("PATH".to_string(), "/usr/bin".to_string());
-        
+
         let content = manager.build_crontab(&[], &[], &env_vars);
         assert!(content.contains("PATH=/usr/bin"));
     }
 }
-

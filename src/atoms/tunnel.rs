@@ -94,8 +94,7 @@ mod datetime_format {
         D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
-        s.parse::<DateTime<Utc>>()
-            .map_err(serde::de::Error::custom)
+        s.parse::<DateTime<Utc>>().map_err(serde::de::Error::custom)
     }
 }
 
@@ -106,7 +105,7 @@ mod datetime_format {
 /// Cloudflare Tunnel 管理 trait
 pub trait TunnelAtom {
     // ===== 认证 =====
-    
+
     /// 执行 cloudflared 认证登录
     ///
     /// 运行 `cloudflared tunnel login`，引导用户在浏览器中完成认证。
@@ -198,8 +197,11 @@ pub trait TunnelAtom {
     ///
     /// # 注意
     /// - 会在 Cloudflare DNS 中创建 CNAME 记录
-    fn route_dns(&self, tunnel: &str, hostname: &str)
-        -> impl std::future::Future<Output = Result<()>> + Send;
+    fn route_dns(
+        &self,
+        tunnel: &str,
+        hostname: &str,
+    ) -> impl std::future::Future<Output = Result<()>> + Send;
 
     /// 列出隧道的 DNS 路由
     ///
@@ -231,7 +233,10 @@ pub trait TunnelAtom {
     ///
     /// # 参数
     /// - `tunnel`: 隧道名称
-    fn status(&self, tunnel: &str) -> impl std::future::Future<Output = Result<TunnelStatus>> + Send;
+    fn status(
+        &self,
+        tunnel: &str,
+    ) -> impl std::future::Future<Output = Result<TunnelStatus>> + Send;
 }
 
 // ========================================
@@ -252,11 +257,7 @@ impl TunnelManager {
     /// - `config_dir`: 配置文件目录
     /// - `credentials_dir`: 凭证目录
     /// - `systemd`: SystemdAtom 实现
-    pub fn new(
-        config_dir: PathBuf,
-        credentials_dir: PathBuf,
-        systemd: SystemdManager,
-    ) -> Self {
+    pub fn new(config_dir: PathBuf, credentials_dir: PathBuf, systemd: SystemdManager) -> Self {
         Self {
             config_dir,
             credentials_dir,
@@ -356,7 +357,8 @@ impl TunnelManager {
         // Tunnel credentials written to /home/user/.cloudflared/xxx-xxx-xxx.json. cloudflared chose this file based on where your origin certificate was found. Keep this file secret. To revoke these credentials, delete the tunnel.
         // Created tunnel my-tunnel with id xxx-xxx-xxx
         for line in output.lines() {
-            if line.contains("Created tunnel") && line.contains("with id")
+            if line.contains("Created tunnel")
+                && line.contains("with id")
                 && let Some(id_start) = line.rfind("with id ")
             {
                 let id = line[id_start + 8..].trim();
@@ -396,11 +398,7 @@ impl TunnelManager {
     }
 
     /// 构建 Ingress 配置
-    fn build_ingress_config(
-        &self,
-        tunnel_id: &str,
-        rules: &[IngressRule],
-    ) -> Result<String> {
+    fn build_ingress_config(&self, tunnel_id: &str, rules: &[IngressRule]) -> Result<String> {
         self.validate_ingress_rules(rules)?;
 
         let credentials_file = self.credentials_path(tunnel_id);
@@ -462,7 +460,9 @@ WantedBy=default.target
             tunnel
         );
 
-        self.systemd.create_unit(&service_name, &unit_content).await?;
+        self.systemd
+            .create_unit(&service_name, &unit_content)
+            .await?;
         Ok(())
     }
 }

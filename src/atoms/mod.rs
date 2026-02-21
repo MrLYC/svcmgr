@@ -15,12 +15,11 @@ pub use template::{
 };
 
 pub use systemd::{
-    SystemdAtom, SystemdManager, UnitInfo, UnitStatus, UnitFile, ActiveState, LoadState,
-    TransientOptions, TransientUnit, LogOptions, LogEntry, LogPriority,
-    ProcessTree, ProcessInfo,
+    ActiveState, LoadState, LogEntry, LogOptions, LogPriority, ProcessInfo, ProcessTree,
+    SystemdAtom, SystemdManager, TransientOptions, TransientUnit, UnitFile, UnitInfo, UnitStatus,
 };
 
 pub use proxy::{
-    ProxyAtom, NginxManager, HttpProxyConfig, TcpProxyConfig, StaticSiteConfig, TtyRoute,
-    NginxStatus,
+    HttpProxyConfig, NginxManager, NginxStatus, ProxyAtom, StaticSiteConfig, TcpProxyConfig,
+    TtyRoute,
 };

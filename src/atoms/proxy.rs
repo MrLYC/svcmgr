@@ -57,19 +57,19 @@ pub trait ProxyAtom {
     fn reload(&self) -> impl std::future::Future<Output = Result<()>> + Send;
     fn status(&self) -> impl std::future::Future<Output = Result<NginxStatus>> + Send;
     fn test_config(&self) -> impl std::future::Future<Output = Result<bool>> + Send;
-    
+
     fn add_http_proxy(&self, config: &HttpProxyConfig) -> Result<()>;
     fn remove_http_proxy(&self, location: &str) -> Result<()>;
     fn list_http_proxies(&self) -> Result<Vec<HttpProxyConfig>>;
-    
+
     fn add_tcp_proxy(&self, config: &TcpProxyConfig) -> Result<()>;
     fn remove_tcp_proxy(&self, listen_port: u16) -> Result<()>;
     fn list_tcp_proxies(&self) -> Result<Vec<TcpProxyConfig>>;
-    
+
     fn add_static_site(&self, config: &StaticSiteConfig) -> Result<()>;
     fn remove_static_site(&self, location: &str) -> Result<()>;
     fn list_static_sites(&self) -> Result<Vec<StaticSiteConfig>>;
-    
+
     fn add_tty_route(&self, name: &str, port: u16) -> Result<()>;
     fn remove_tty_route(&self, name: &str) -> Result<()>;
     fn list_tty_routes(&self) -> Result<Vec<TtyRoute>>;
@@ -188,17 +188,23 @@ impl NginxManager {
                     }
 
                     if let Some(rest) = inner_trimmed.strip_prefix("proxy_pass ") {
-                        upstream = rest
-                            .trim_end_matches(';')
-                            .trim()
-                            .to_string();
+                        upstream = rest.trim_end_matches(';').trim().to_string();
                     } else if inner_trimmed.contains("Upgrade $http_upgrade") {
                         websocket = true;
                     } else if let Some(rest) = inner_trimmed.strip_prefix("proxy_set_header ") {
                         let rest = rest.trim_end_matches(';').trim();
                         if let Some((key, value)) = rest.split_once(' ') {
                             let value = value.trim_matches('"');
-                            if !["Host", "X-Real-IP", "X-Forwarded-For", "X-Forwarded-Proto", "Upgrade", "Connection"].contains(&key) {
+                            if ![
+                                "Host",
+                                "X-Real-IP",
+                                "X-Forwarded-For",
+                                "X-Forwarded-Proto",
+                                "Upgrade",
+                                "Connection",
+                            ]
+                            .contains(&key)
+                            {
                                 headers.insert(key.to_string(), value.to_string());
                             }
                         }
@@ -353,7 +359,8 @@ impl NginxManager {
 
         while let Some(line) = lines.next() {
             let trimmed = line.trim();
-            if trimmed.starts_with("location /tty/") && trimmed.ends_with('{')
+            if trimmed.starts_with("location /tty/")
+                && trimmed.ends_with('{')
                 && let Some(name_part) = trimmed.strip_prefix("location /tty/")
                 && let Some(name) = name_part.strip_suffix("/ {")
             {
@@ -367,8 +374,8 @@ impl NginxManager {
                     }
 
                     if inner_trimmed.starts_with("proxy_pass http://127.0.0.1:")
-                        && let Some(port_part) = inner_trimmed
-                            .strip_prefix("proxy_pass http://127.0.0.1:")
+                        && let Some(port_part) =
+                            inner_trimmed.strip_prefix("proxy_pass http://127.0.0.1:")
                         && let Some(port_str) = port_part.split('/').next()
                     {
                         port = port_str.parse().unwrap_or(0);
@@ -387,7 +394,7 @@ impl NginxManager {
     #[allow(dead_code)]
     async fn atomic_write(&self, path: &PathBuf, content: &str) -> Result<()> {
         let backup_path = path.with_extension("bak");
-        
+
         if path.exists() {
             fs::copy(path, &backup_path).await?;
         }
@@ -450,9 +457,7 @@ impl ProxyAtom for NginxManager {
         let running = pid_file.exists();
         let mut pid = None;
 
-        if running
-            && let Ok(pid_content) = fs::read_to_string(&pid_file).await
-        {
+        if running && let Ok(pid_content) = fs::read_to_string(&pid_file).await {
             pid = pid_content.trim().parse().ok();
         }
 
@@ -509,7 +514,7 @@ impl ProxyAtom for NginxManager {
 
         let content = std::fs::read_to_string(&path)?;
         let proxies = self.parse_http_proxies(&content);
-        
+
         let filtered: Vec<_> = proxies
             .into_iter()
             .filter(|p| p.location != location)
@@ -567,7 +572,7 @@ impl ProxyAtom for NginxManager {
 
         let content = std::fs::read_to_string(&path)?;
         let proxies = self.parse_tcp_proxies(&content);
-        
+
         let filtered: Vec<_> = proxies
             .into_iter()
             .filter(|p| p.listen_port != listen_port)
@@ -625,7 +630,7 @@ impl ProxyAtom for NginxManager {
 
         let content = std::fs::read_to_string(&path)?;
         let sites = self.parse_static_sites(&content);
-        
+
         let filtered: Vec<_> = sites
             .into_iter()
             .filter(|s| s.location != location)
@@ -680,11 +685,8 @@ impl ProxyAtom for NginxManager {
 
         let content = std::fs::read_to_string(&path)?;
         let routes = self.parse_tty_routes(&content);
-        
-        let filtered: Vec<_> = routes
-            .into_iter()
-            .filter(|r| r.name != name)
-            .collect();
+
+        let filtered: Vec<_> = routes.into_iter().filter(|r| r.name != name).collect();
 
         let mut new_content = String::new();
         for route in filtered {

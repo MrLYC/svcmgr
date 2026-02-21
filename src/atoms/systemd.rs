@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 /// Systemd service management atom
-/// 
+///
 /// This module provides systemd user service management capabilities:
 /// - Unit file management (create/update/delete)
 /// - Service lifecycle control (start/stop/restart/reload)
@@ -149,59 +149,79 @@ pub enum ActiveState {
 /// Systemd user service management trait
 pub trait SystemdAtom {
     /// Create a new unit file
-    fn create_unit(&self, name: &str, content: &str) -> impl std::future::Future<Output = Result<()>> + Send;
-    
+    fn create_unit(
+        &self,
+        name: &str,
+        content: &str,
+    ) -> impl std::future::Future<Output = Result<()>> + Send;
+
     /// Update an existing unit file
-    fn update_unit(&self, name: &str, content: &str) -> impl std::future::Future<Output = Result<()>> + Send;
-    
+    fn update_unit(
+        &self,
+        name: &str,
+        content: &str,
+    ) -> impl std::future::Future<Output = Result<()>> + Send;
+
     /// Delete a unit file (stops and disables first)
     fn delete_unit(&self, name: &str) -> impl std::future::Future<Output = Result<()>> + Send;
-    
+
     /// Get unit file content
     fn get_unit(&self, name: &str) -> impl std::future::Future<Output = Result<UnitFile>> + Send;
-    
+
     /// List all managed units
     fn list_units(&self) -> impl std::future::Future<Output = Result<Vec<UnitInfo>>> + Send;
-    
+
     /// Start a service
     fn start(&self, name: &str) -> impl std::future::Future<Output = Result<()>> + Send;
-    
+
     /// Stop a service
     fn stop(&self, name: &str) -> impl std::future::Future<Output = Result<()>> + Send;
-    
+
     /// Restart a service
     fn restart(&self, name: &str) -> impl std::future::Future<Output = Result<()>> + Send;
-    
+
     /// Reload service configuration
     fn reload(&self, name: &str) -> impl std::future::Future<Output = Result<()>> + Send;
-    
+
     /// Enable service (auto-start)
     fn enable(&self, name: &str) -> impl std::future::Future<Output = Result<()>> + Send;
-    
+
     /// Disable service
     fn disable(&self, name: &str) -> impl std::future::Future<Output = Result<()>> + Send;
-    
+
     /// Get service status
     fn status(&self, name: &str) -> impl std::future::Future<Output = Result<UnitStatus>> + Send;
-    
+
     /// Get process tree for a service
-    fn process_tree(&self, name: &str) -> impl std::future::Future<Output = Result<ProcessTree>> + Send;
-    
+    fn process_tree(
+        &self,
+        name: &str,
+    ) -> impl std::future::Future<Output = Result<ProcessTree>> + Send;
+
     /// Query logs with options
-    fn logs(&self, name: &str, opts: &LogOptions) -> impl std::future::Future<Output = Result<Vec<LogEntry>>> + Send;
-    
+    fn logs(
+        &self,
+        name: &str,
+        opts: &LogOptions,
+    ) -> impl std::future::Future<Output = Result<Vec<LogEntry>>> + Send;
+
     /// Stream logs in real-time
     fn logs_stream(&self, name: &str) -> Result<Pin<Box<dyn Stream<Item = LogEntry> + Send>>>;
-    
+
     /// Run a transient unit (temporary task)
-    fn run_transient(&self, opts: &TransientOptions) -> impl std::future::Future<Output = Result<TransientUnit>> + Send;
-    
+    fn run_transient(
+        &self,
+        opts: &TransientOptions,
+    ) -> impl std::future::Future<Output = Result<TransientUnit>> + Send;
+
     /// List active transient units
-    fn list_transient(&self) -> impl std::future::Future<Output = Result<Vec<TransientUnit>>> + Send;
-    
+    fn list_transient(
+        &self,
+    ) -> impl std::future::Future<Output = Result<Vec<TransientUnit>>> + Send;
+
     /// Stop a transient unit
     fn stop_transient(&self, name: &str) -> impl std::future::Future<Output = Result<()>> + Send;
-    
+
     /// Reload systemd daemon configuration
     fn daemon_reload(&self) -> impl std::future::Future<Output = Result<()>> + Send;
 }
@@ -347,7 +367,7 @@ impl SystemdManager {
 
         for line in output.lines() {
             let line = line.trim();
-            
+
             if line.starts_with("Active:") {
                 let parts: Vec<&str> = line.split_whitespace().collect();
                 if parts.len() >= 2 {
@@ -384,7 +404,10 @@ impl SystemdManager {
             (s, 1)
         };
 
-        num_str.parse::<f64>().ok().map(|n| (n * unit as f64) as u64)
+        num_str
+            .parse::<f64>()
+            .ok()
+            .map(|n| (n * unit as f64) as u64)
     }
 
     /// Parse journalctl output into log entries
@@ -434,12 +457,12 @@ impl SystemdAtom for SystemdManager {
         // Stop and disable first
         let _ = self.stop(name).await;
         let _ = self.disable(name).await;
-        
+
         let path = self.unit_path(name);
         if path.exists() {
             fs::remove_file(&path).await?;
         }
-        
+
         self.daemon_reload().await?;
         Ok(())
     }
@@ -497,9 +520,9 @@ impl SystemdAtom for SystemdManager {
     async fn process_tree(&self, name: &str) -> Result<ProcessTree> {
         // Get main PID first
         let status = self.status(name).await?;
-        let root_pid = status.pid.ok_or_else(|| {
-            Error::Other(format!("Service {} has no main PID", name))
-        })?;
+        let root_pid = status
+            .pid
+            .ok_or_else(|| Error::Other(format!("Service {} has no main PID", name)))?;
 
         // Use pstree or ps to get process tree
         // For now, return simple tree with root process only
@@ -516,76 +539,78 @@ impl SystemdAtom for SystemdManager {
 
     async fn logs(&self, name: &str, opts: &LogOptions) -> Result<Vec<LogEntry>> {
         let mut args = vec!["-u", name, "--no-pager"];
-        
+
         let since_str;
         let until_str;
         let lines_str;
-        
+
         if let Some(since) = opts.since {
             since_str = since.to_rfc3339();
             args.push("--since");
             args.push(&since_str);
         }
-        
+
         if let Some(until) = opts.until {
             until_str = until.to_rfc3339();
             args.push("--until");
             args.push(&until_str);
         }
-        
+
         if let Some(lines) = opts.lines {
             lines_str = format!("{}", lines);
             args.push("-n");
             args.push(&lines_str);
         }
-        
+
         let output = self.run_journalctl(&args)?;
         Ok(self.parse_logs(name, &output))
     }
 
     fn logs_stream(&self, _name: &str) -> Result<Pin<Box<dyn Stream<Item = LogEntry> + Send>>> {
         // TODO: Implement real-time log streaming using journalctl -f
-        Err(Error::NotSupported("Log streaming not yet implemented".to_string()))
+        Err(Error::NotSupported(
+            "Log streaming not yet implemented".to_string(),
+        ))
     }
 
     async fn run_transient(&self, opts: &TransientOptions) -> Result<TransientUnit> {
         let mut args = vec!["--user", "--unit", &opts.name];
-        
+
         if opts.scope {
             args.push("--scope");
         }
-        
+
         if opts.remain_after_exit {
             args.push("--remain-after-exit");
         }
-        
+
         if opts.collect {
             args.push("--collect");
         }
-        
+
         // Add environment variables
-        let env_args: Vec<String> = opts.env.iter()
+        let env_args: Vec<String> = opts
+            .env
+            .iter()
             .map(|(k, v)| format!("--setenv={}={}", k, v))
             .collect();
         let env_arg_refs: Vec<&str> = env_args.iter().map(|s| s.as_str()).collect();
         args.extend(env_arg_refs);
-        
+
         // Add working directory
         let wd_arg;
         if let Some(ref wd) = opts.working_directory {
             wd_arg = format!("--working-directory={}", wd.display());
             args.push(&wd_arg);
         }
-        
+
         // Add command
         args.push("--");
         let cmd_refs: Vec<&str> = opts.command.iter().map(|s| s.as_str()).collect();
         args.extend(cmd_refs);
-        
-        let output = Command::new("systemd-run")
-            .args(&args)
-            .output()?;
-        
+
+        let output = Command::new("systemd-run").args(&args).output()?;
+
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             return Err(Error::CommandFailed {
@@ -594,7 +619,7 @@ impl SystemdAtom for SystemdManager {
                 stderr: stderr.to_string(),
             });
         }
-        
+
         Ok(TransientUnit {
             name: opts.name.clone(),
             pid: None,
@@ -606,9 +631,10 @@ impl SystemdAtom for SystemdManager {
         // List all units and filter transient ones
         let output = self.run_systemctl(&["list-units", "--all", "--no-pager"])?;
         let units = self.parse_unit_list(&output);
-        
+
         // Transient units typically have .scope or .service suffix and are runtime-only
-        Ok(units.iter()
+        Ok(units
+            .iter()
             .filter(|u| u.name.contains("run-"))
             .map(|u| TransientUnit {
                 name: u.name.clone(),
@@ -688,21 +714,27 @@ mod tests {
     fn test_parse_memory_size() {
         assert_eq!(SystemdManager::parse_memory_size("1024"), Some(1024));
         assert_eq!(SystemdManager::parse_memory_size("4K"), Some(4 * 1024));
-        assert_eq!(SystemdManager::parse_memory_size("2.5M"), Some((2.5 * 1024.0 * 1024.0) as u64));
-        assert_eq!(SystemdManager::parse_memory_size("1.2G"), Some((1.2 * 1024.0 * 1024.0 * 1024.0) as u64));
+        assert_eq!(
+            SystemdManager::parse_memory_size("2.5M"),
+            Some((2.5 * 1024.0 * 1024.0) as u64)
+        );
+        assert_eq!(
+            SystemdManager::parse_memory_size("1.2G"),
+            Some((1.2 * 1024.0 * 1024.0 * 1024.0) as u64)
+        );
     }
 
     #[test]
     fn test_parse_unit_list() {
         let tmpdir = std::env::temp_dir().join("svcmgr-test-systemd");
         let manager = SystemdManager::new(tmpdir, false);
-        
+
         let output = r#"UNIT                    LOAD   ACTIVE SUB     DESCRIPTION
 test.service            loaded active running Test Service
 another.service         loaded inactive dead    Another Service
 
 2 loaded units listed."#;
-        
+
         let units = manager.parse_unit_list(output);
         assert_eq!(units.len(), 2);
         assert_eq!(units[0].name, "test.service");
@@ -722,24 +754,60 @@ another.service         loaded inactive dead    Another Service
     /// 测试 parse_load_state 覆盖所有枚举值
     #[test]
     fn test_parse_load_state_all_variants() {
-        assert_eq!(SystemdManager::parse_load_state("loaded"), LoadState::Loaded);
-        assert_eq!(SystemdManager::parse_load_state("not-found"), LoadState::NotFound);
+        assert_eq!(
+            SystemdManager::parse_load_state("loaded"),
+            LoadState::Loaded
+        );
+        assert_eq!(
+            SystemdManager::parse_load_state("not-found"),
+            LoadState::NotFound
+        );
         assert_eq!(SystemdManager::parse_load_state("error"), LoadState::Error);
-        assert_eq!(SystemdManager::parse_load_state("masked"), LoadState::Masked);
-        assert_eq!(SystemdManager::parse_load_state("bad-setting"), LoadState::BadSetting);
-        assert_eq!(SystemdManager::parse_load_state("unknown_state"), LoadState::Error);
+        assert_eq!(
+            SystemdManager::parse_load_state("masked"),
+            LoadState::Masked
+        );
+        assert_eq!(
+            SystemdManager::parse_load_state("bad-setting"),
+            LoadState::BadSetting
+        );
+        assert_eq!(
+            SystemdManager::parse_load_state("unknown_state"),
+            LoadState::Error
+        );
     }
 
     /// 测试 parse_active_state 覆盖所有枚举值
     #[test]
     fn test_parse_active_state_all_variants() {
-        assert_eq!(SystemdManager::parse_active_state("active"), ActiveState::Active);
-        assert_eq!(SystemdManager::parse_active_state("inactive"), ActiveState::Inactive);
-        assert_eq!(SystemdManager::parse_active_state("failed"), ActiveState::Failed);
-        assert_eq!(SystemdManager::parse_active_state("activating"), ActiveState::Activating);
-        assert_eq!(SystemdManager::parse_active_state("deactivating"), ActiveState::Deactivating);
-        assert_eq!(SystemdManager::parse_active_state("reloading"), ActiveState::Reloading);
-        assert_eq!(SystemdManager::parse_active_state("unknown_state"), ActiveState::Inactive);
+        assert_eq!(
+            SystemdManager::parse_active_state("active"),
+            ActiveState::Active
+        );
+        assert_eq!(
+            SystemdManager::parse_active_state("inactive"),
+            ActiveState::Inactive
+        );
+        assert_eq!(
+            SystemdManager::parse_active_state("failed"),
+            ActiveState::Failed
+        );
+        assert_eq!(
+            SystemdManager::parse_active_state("activating"),
+            ActiveState::Activating
+        );
+        assert_eq!(
+            SystemdManager::parse_active_state("deactivating"),
+            ActiveState::Deactivating
+        );
+        assert_eq!(
+            SystemdManager::parse_active_state("reloading"),
+            ActiveState::Reloading
+        );
+        assert_eq!(
+            SystemdManager::parse_active_state("unknown_state"),
+            ActiveState::Inactive
+        );
     }
 
     /// 测试 parse_unit_list 空输出
@@ -747,10 +815,10 @@ another.service         loaded inactive dead    Another Service
     fn test_parse_unit_list_empty() {
         let tmpdir = std::env::temp_dir().join("svcmgr-test-systemd");
         let manager = SystemdManager::new(tmpdir, false);
-        
+
         let units = manager.parse_unit_list("");
         assert_eq!(units.len(), 0);
-        
+
         let units = manager.parse_unit_list("UNIT LOAD ACTIVE SUB DESCRIPTION");
         assert_eq!(units.len(), 0);
     }
