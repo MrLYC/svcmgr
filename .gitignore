@@ -338,3 +338,4 @@ pyrightconfig.json
 # Added by cargo
 
 /target
+.temp
