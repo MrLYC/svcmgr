@@ -3,6 +3,7 @@ pub mod git;
 pub mod mise;
 pub mod systemd;
 pub mod template;
+pub mod tunnel;
 
 pub use git::GitAtom;
 pub use template::{

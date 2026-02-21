@@ -1,0 +1,12 @@
+[Unit]
+Description=Cloudflare Tunnel - {{ tunnel_name }}
+After=network.target
+
+[Service]
+Type=notify
+ExecStart=/usr/bin/cloudflared tunnel --config {{ config_file }} run {{ tunnel_name }}
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=default.target
