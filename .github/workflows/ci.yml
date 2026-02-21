@@ -71,6 +71,12 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
     
+    - name: Checkout frontend repository
+      uses: actions/checkout@v4
+      with:
+        repository: MrLYC/svcmgr-visualizer
+        path: .temp
+    
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
