@@ -81,7 +81,7 @@ jobs:
     - name: Install frontend dependencies
       run: |
         cd frontend
-        npm ci
+        npm install --prefer-offline --no-audit
     
     - name: Build frontend
       run: |
