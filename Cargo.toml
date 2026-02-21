@@ -5,8 +5,10 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0.102"
+chrono = { version = "0.4.43", features = ["serde"] }
 clap = { version = "4.5.60", features = ["derive"] }
 dirs = "6.0.0"
+futures = { version = "0.3.32", features = ["async-await"] }
 git2 = "0.20.4"
 minijinja = "2.5"
 regex = "1.11.1"

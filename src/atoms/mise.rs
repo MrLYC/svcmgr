@@ -1,10 +1,10 @@
 /// Mise 原子模块 - 依赖管理、全局任务和环境变量
 ///
 /// 本模块提供三个核心 trait：
-/// - DependencyAtom: 管理工具版本（通过 mise 安装 node, python, rust 等）
+/// - DependencyAtom: 管理工具版本(通过 mise 安装 node, python, rust 等)
 /// - TaskAtom: 管理全局任务（mise 任务系统）
 /// - EnvAtom: 管理环境变量（mise 环境变量系统）
-use crate::Result;
+use crate::error::{Error, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -183,7 +183,11 @@ impl MiseManager {
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(Error::CommandFailed { command: "mise".to_string(), exit_code: output.status.code().unwrap_or(-1), stderr: stderr.to_string() });
+            return Err(Error::CommandFailed {
+                command: "mise".to_string(),
+                exit_code: output.status.code(),
+                stderr: stderr.to_string(),
+            });
         }
 
         Ok(String::from_utf8_lossy(&output.stdout).to_string())
@@ -258,8 +262,8 @@ impl DependencyAtom for MiseManager {
         let output = self.run_mise(&["ls-remote", tool])?;
         let versions: Vec<String> = output
             .lines()
-            .map(|line| line.trim().to_string())
-            .filter(|line| !line.is_empty())
+            .map(|line: &str| line.trim().to_string())
+            .filter(|line: &String| !line.is_empty())
             .collect();
         Ok(versions)
     }
@@ -450,7 +454,7 @@ impl EnvAtom for MiseManager {
 
         let vars: Vec<EnvVar> = output
             .lines()
-            .filter_map(|line| {
+            .filter_map(|line: &str| {
                 let parts: Vec<&str> = line.splitn(2, '=').collect();
                 if parts.len() == 2 {
                     Some(EnvVar {
