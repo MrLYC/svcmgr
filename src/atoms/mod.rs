@@ -1,3 +1,4 @@
+pub mod crontab;
 pub mod git;
 pub mod mise;
 pub mod systemd;
