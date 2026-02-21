@@ -1,0 +1,14 @@
+[tasks.{{ name }}]
+run = "{{ command }}"
+{% if description %}
+description = "{{ description }}"
+{% endif %}
+{% if env %}
+env = { {% for k, v in env.items() %}{{ k }} = "{{ v }}"{% if not loop.last %}, {% endif %}{% endfor %} }
+{% endif %}
+{% if depends %}
+depends = {{ depends | tojson }}
+{% endif %}
+{% if dir %}
+dir = "{{ dir }}"
+{% endif %}
