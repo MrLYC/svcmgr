@@ -333,3 +333,8 @@ pyrightconfig.json
 
 # End of https://www.toptal.com/developers/gitignore/api/python,golang,node,docker,mac,linux
 
+
+
+# Added by cargo
+
+/target

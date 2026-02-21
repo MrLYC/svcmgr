@@ -1,0 +1,23 @@
+[Unit]
+Description={{ description | default(name ~ " service") }}
+After=network.target
+{% if requires -%}
+Requires={{ requires | join(" ") }}
+{% endif -%}
+
+[Service]
+Type=simple
+ExecStart={{ exec_start }}
+{% if working_directory -%}
+WorkingDirectory={{ working_directory }}
+{% endif -%}
+{% if environment -%}
+{% for key, value in environment.items() -%}
+Environment="{{ key }}={{ value }}"
+{% endfor -%}
+{% endif -%}
+Restart={{ restart | default("on-failure") }}
+RestartSec={{ restart_sec | default(5) }}
+
+[Install]
+WantedBy=multi-user.target
