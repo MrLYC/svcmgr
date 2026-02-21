@@ -136,13 +136,13 @@ impl TemplateEngine {
         // Systemd 服务模板
         self.builtin_templates.insert(
             "systemd/simple-service.service.j2".to_string(),
-            include_str!("../../templates/systemd/simple-service.service.j2").to_string(),
+            include_str!("../../../templates/systemd/simple-service.service.j2").to_string(),
         );
 
         // Crontab 模板
         self.builtin_templates.insert(
             "crontab/daily-task.cron.j2".to_string(),
-            include_str!("../../templates/crontab/daily-task.cron.j2").to_string(),
+            include_str!("../../../templates/crontab/daily-task.cron.j2").to_string(),
         );
 
         Ok(())

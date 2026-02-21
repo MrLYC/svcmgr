@@ -3,6 +3,14 @@ name = "svcmgr"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+name = "svcmgr"
+path = "src/backend/main.rs"
+
+[lib]
+name = "svcmgr"
+path = "src/backend/lib.rs"
+
 [dependencies]
 anyhow = "1.0.102"
 chrono = { version = "0.4.43", features = ["serde"] }
