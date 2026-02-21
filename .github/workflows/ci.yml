@@ -71,32 +71,26 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
     
-    - name: Checkout frontend repository
-      uses: actions/checkout@v4
-      with:
-        repository: MrLYC/svcmgr-visualizer
-        path: .temp
-    
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '20'
         cache: 'npm'
-        cache-dependency-path: .temp/package-lock.json
+        cache-dependency-path: frontend/package-lock.json
     
     - name: Install frontend dependencies
       run: |
-        cd .temp
+        cd frontend
         npm ci
     
     - name: Build frontend
       run: |
-        cd .temp
+        cd frontend
         npm run build
     
     - name: Start preview server
       run: |
-        cd .temp
+        cd frontend
         npm run preview &
         echo $! > preview.pid
     
@@ -116,8 +110,8 @@ jobs:
     - name: Stop preview server
       if: always()
       run: |
-        if [ -f .temp/preview.pid ]; then
-          kill $(cat .temp/preview.pid) || true
+        if [ -f frontend/preview.pid ]; then
+          kill $(cat frontend/preview.pid) || true
         fi
 
   coverage:
