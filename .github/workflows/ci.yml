@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ main, master, develop ]
+    branches: [ main, master, develop, fe ]
   pull_request:
-    branches: [ main, master, develop ]
+    branches: [ main, master, develop, fe ]
 
 env:
   CARGO_TERM_COLOR: always
@@ -62,6 +62,57 @@ jobs:
     
     - name: Run doc tests
       run: cargo test --doc --verbose
+
+  frontend:
+    name: Frontend Build & Test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: .temp/package-lock.json
+    
+    - name: Install frontend dependencies
+      run: |
+        cd .temp
+        npm ci
+    
+    - name: Build frontend
+      run: |
+        cd .temp
+        npm run build
+    
+    - name: Start preview server
+      run: |
+        cd .temp
+        npm run preview &
+        echo $! > preview.pid
+    
+    - name: Wait for server to be ready
+      run: |
+        timeout 30 bash -c 'until curl -sf http://localhost:4173 > /dev/null; do sleep 1; done' || exit 1
+    
+    - name: Verify frontend is accessible
+      run: |
+        response=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:4173)
+        if [ "$response" != "200" ]; then
+          echo "Frontend service returned HTTP $response (expected 200)"
+          exit 1
+        fi
+        echo "✅ Frontend is accessible and returned HTTP 200"
+    
+    - name: Stop preview server
+      if: always()
+      run: |
+        if [ -f .temp/preview.pid ]; then
+          kill $(cat .temp/preview.pid) || true
+        fi
 
   coverage:
     name: Code Coverage
