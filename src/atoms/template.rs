@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use anyhow::{Context as AnyhowContext, Result, anyhow};
 use minijinja::{Environment, Value, context};
 use std::collections::HashMap;
@@ -477,4 +479,30 @@ mod tests {
         let content = fs::read_to_string(&output_path).unwrap();
         assert_eq!(content, "Hello, File!");
     }
+
+    /// 测试获取不存在的模板时的错误处理
+    #[test]
+    fn test_get_nonexistent_template() {
+        let (engine, _temp) = create_test_engine();
+        
+        let result = engine.get_template("nonexistent_template.j2");
+        assert!(result.is_err());
+    }
+
+    /// 测试渲染复杂嵌套变量
+    #[test]
+    fn test_render_nested_variables() {
+        let (engine, _temp) = create_test_engine();
+        
+        let template = "User: {{ user.name }}, Age: {{ user.age }}";
+        let mut ctx = TemplateContext::new();
+        let mut user_map = HashMap::new();
+        user_map.insert("name", Value::from("Alice"));
+        user_map.insert("age", Value::from(30));
+        ctx.insert("user", user_map);
+        
+        let result = engine.render(template, &ctx).unwrap();
+        assert_eq!(result, "User: Alice, Age: 30");
+    }
 }
+

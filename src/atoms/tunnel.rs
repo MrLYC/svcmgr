@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 /// Cloudflare Tunnel 隧道管理原子
 ///
 /// 本模块提供 Cloudflare Tunnel 管理功能：
@@ -354,11 +356,11 @@ impl TunnelManager {
         // Tunnel credentials written to /home/user/.cloudflared/xxx-xxx-xxx.json. cloudflared chose this file based on where your origin certificate was found. Keep this file secret. To revoke these credentials, delete the tunnel.
         // Created tunnel my-tunnel with id xxx-xxx-xxx
         for line in output.lines() {
-            if line.contains("Created tunnel") && line.contains("with id") {
-                if let Some(id_start) = line.rfind("with id ") {
-                    let id = line[id_start + 8..].trim();
-                    return Ok(id.to_string());
-                }
+            if line.contains("Created tunnel") && line.contains("with id")
+                && let Some(id_start) = line.rfind("with id ")
+            {
+                let id = line[id_start + 8..].trim();
+                return Ok(id.to_string());
             }
         }
 
@@ -421,6 +423,7 @@ impl TunnelManager {
     }
 
     /// 格式化隧道运行命令
+    #[cfg(test)]
     fn format_tunnel_run_command(&self, tunnel: &str) -> String {
         let config_file = self.config_path(tunnel);
         format!(
@@ -468,7 +471,7 @@ impl TunnelAtom for TunnelManager {
     async fn login(&self) -> Result<()> {
         // 运行 cloudflared tunnel login（会打开浏览器）
         let output = Command::new("cloudflared")
-            .args(&["tunnel", "login"])
+            .args(["tunnel", "login"])
             .output()?;
 
         if !output.status.success() {
@@ -640,13 +643,13 @@ impl TunnelAtom for TunnelManager {
 
         let mut routes = Vec::new();
         for line in output.lines() {
-            if line.contains(&tunnel_info.id) || line.contains(&tunnel_info.name) {
-                if let Some(hostname) = line.split("->").next() {
-                    routes.push(DnsRoute {
-                        hostname: hostname.trim().to_string(),
-                        tunnel_id: tunnel_info.id.clone(),
-                    });
-                }
+            if (line.contains(&tunnel_info.id) || line.contains(&tunnel_info.name))
+                && let Some(hostname) = line.split("->").next()
+            {
+                routes.push(DnsRoute {
+                    hostname: hostname.trim().to_string(),
+                    tunnel_id: tunnel_info.id.clone(),
+                });
             }
         }
 

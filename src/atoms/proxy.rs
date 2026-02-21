@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::atoms::systemd::{SystemdAtom, SystemdManager};
 use crate::error::{Error, Result};
 use std::collections::HashMap;
@@ -121,6 +123,7 @@ impl NginxManager {
         Ok(())
     }
 
+    #[allow(dead_code)]
     fn run_nginx(&self, args: &[&str]) -> Result<String> {
         let output = Command::new("nginx").args(args).output()?;
 
@@ -350,33 +353,30 @@ impl NginxManager {
 
         while let Some(line) = lines.next() {
             let trimmed = line.trim();
-            if trimmed.starts_with("location /tty/") && trimmed.ends_with('{') {
-                if let Some(name_part) = trimmed.strip_prefix("location /tty/") {
-                    if let Some(name) = name_part.strip_suffix("/ {") {
-                        let name = name.trim().to_string();
-                        let mut port = 0u16;
+            if trimmed.starts_with("location /tty/") && trimmed.ends_with('{')
+                && let Some(name_part) = trimmed.strip_prefix("location /tty/")
+                && let Some(name) = name_part.strip_suffix("/ {")
+            {
+                let name = name.trim().to_string();
+                let mut port = 0u16;
 
-                        while let Some(inner_line) = lines.next() {
-                            let inner_trimmed = inner_line.trim();
-                            if inner_trimmed == "}" {
-                                break;
-                            }
-
-                            if inner_trimmed.starts_with("proxy_pass http://127.0.0.1:") {
-                                if let Some(port_part) = inner_trimmed
-                                    .strip_prefix("proxy_pass http://127.0.0.1:")
-                                {
-                                    if let Some(port_str) = port_part.split('/').next() {
-                                        port = port_str.parse().unwrap_or(0);
-                                    }
-                                }
-                            }
-                        }
-
-                        if port > 0 {
-                            routes.push(TtyRoute { name, port });
-                        }
+                for inner_line in lines.by_ref() {
+                    let inner_trimmed = inner_line.trim();
+                    if inner_trimmed == "}" {
+                        break;
                     }
+
+                    if inner_trimmed.starts_with("proxy_pass http://127.0.0.1:")
+                        && let Some(port_part) = inner_trimmed
+                            .strip_prefix("proxy_pass http://127.0.0.1:")
+                        && let Some(port_str) = port_part.split('/').next()
+                    {
+                        port = port_str.parse().unwrap_or(0);
+                    }
+                }
+
+                if port > 0 {
+                    routes.push(TtyRoute { name, port });
                 }
             }
         }
@@ -384,6 +384,7 @@ impl NginxManager {
         routes
     }
 
+    #[allow(dead_code)]
     async fn atomic_write(&self, path: &PathBuf, content: &str) -> Result<()> {
         let backup_path = path.with_extension("bak");
         
@@ -429,7 +430,7 @@ impl ProxyAtom for NginxManager {
     async fn reload(&self) -> Result<()> {
         let config_path = self.nginx_conf_path();
         let output = Command::new("nginx")
-            .args(&["-s", "reload", "-c", &config_path.to_string_lossy()])
+            .args(["-s", "reload", "-c", &config_path.to_string_lossy()])
             .output()?;
 
         if !output.status.success() {
@@ -449,10 +450,10 @@ impl ProxyAtom for NginxManager {
         let running = pid_file.exists();
         let mut pid = None;
 
-        if running {
-            if let Ok(pid_content) = fs::read_to_string(&pid_file).await {
-                pid = pid_content.trim().parse().ok();
-            }
+        if running
+            && let Ok(pid_content) = fs::read_to_string(&pid_file).await
+        {
+            pid = pid_content.trim().parse().ok();
         }
 
         Ok(NginxStatus {
@@ -466,7 +467,7 @@ impl ProxyAtom for NginxManager {
     async fn test_config(&self) -> Result<bool> {
         let config_path = self.nginx_conf_path();
         let output = Command::new("nginx")
-            .args(&["-t", "-c", &config_path.to_string_lossy()])
+            .args(["-t", "-c", &config_path.to_string_lossy()])
             .output()?;
 
         let stderr = String::from_utf8_lossy(&output.stderr);

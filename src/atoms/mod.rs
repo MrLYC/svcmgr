@@ -1,3 +1,5 @@
+#![allow(unused_imports)]
+
 pub mod crontab;
 pub mod git;
 pub mod mise;

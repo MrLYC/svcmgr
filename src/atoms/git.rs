@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::error::{Error, Result};
 use git2::{DiffOptions, IndexAddOption, ObjectType, Repository, Signature};
 use serde::{Deserialize, Serialize};

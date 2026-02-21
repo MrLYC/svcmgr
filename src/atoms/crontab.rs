@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 /// Crontab 周期任务管理原子
 ///
 /// 本模块提供 Crontab 用户级周期任务管理功能：
@@ -207,12 +209,12 @@ impl CrontabManager {
             }
 
             // 解析环境变量
-            if trimmed.contains('=') && !trimmed.starts_with('#') && !trimmed.contains(' ') {
-                if let Some((key, value)) = trimmed.split_once('=') {
-                    env_vars.insert(key.to_string(), value.to_string());
-                    other_lines.push(line.to_string());
-                    continue;
-                }
+            if trimmed.contains('=') && !trimmed.starts_with('#') && !trimmed.contains(' ')
+                && let Some((key, value)) = trimmed.split_once('=')
+            {
+                env_vars.insert(key.to_string(), value.to_string());
+                other_lines.push(line.to_string());
+                continue;
             }
 
             // 解析 cron 任务行
@@ -550,15 +552,14 @@ PATH=/usr/bin:/bin
     fn test_build_crontab() {
         let manager = CrontabManager::new();
 
-        let mut tasks = Vec::new();
-        tasks.push(CronTask {
+        let tasks = vec![CronTask {
             id: Some("123456".to_string()),
             description: "Test task".to_string(),
             expression: "0 2 * * *".to_string(),
             command: "/usr/local/bin/test.sh".to_string(),
             env: HashMap::new(),
             enabled: true,
-        });
+        }];
 
         let mut env_vars = HashMap::new();
         env_vars.insert("SHELL".to_string(), "/bin/bash".to_string());
@@ -574,15 +575,14 @@ PATH=/usr/bin:/bin
     fn test_build_crontab_with_disabled_task() {
         let manager = CrontabManager::new();
 
-        let mut tasks = Vec::new();
-        tasks.push(CronTask {
+        let tasks = vec![CronTask {
             id: Some("123456".to_string()),
             description: "Disabled task".to_string(),
             expression: "0 2 * * *".to_string(),
             command: "/usr/local/bin/test.sh".to_string(),
             env: HashMap::new(),
             enabled: false,
-        });
+        }];
 
         let content = manager.build_crontab(&tasks, &[], &HashMap::new());
 
@@ -664,4 +664,55 @@ PATH=/usr/bin:/bin
         assert!(manager.validate_expression("@yearly").is_ok());
         assert!(manager.validate_expression("@annually").is_ok());
     }
+
+    /// 测试无效 cron 表达式
+    #[test]
+    fn test_validate_invalid_expressions() {
+        let manager = CrontabManager::new();
+        
+        assert!(manager.validate_expression("").is_err());
+        assert!(manager.validate_expression("not a cron").is_err());
+        assert!(manager.validate_expression("60 * * * *").is_err());
+    }
+
+    /// 测试 parse_crontab 空输入
+    #[test]
+    fn test_parse_crontab_empty() {
+        let manager = CrontabManager::new();
+        
+        let (tasks, other_lines, env_vars) = manager.parse_crontab("");
+        assert_eq!(tasks.len(), 0);
+        assert_eq!(other_lines.len(), 0);
+        assert_eq!(env_vars.len(), 0);
+    }
+
+    /// 测试 normalize_expression 边界情况
+    #[test]
+    fn test_normalize_expression_edge_cases() {
+        let manager = CrontabManager::new();
+        
+        assert_eq!(manager.normalize_expression("@reboot"), "@reboot");
+        assert_eq!(manager.normalize_expression(""), "");
+    }
+
+    /// 测试 to_schedule_format 月度表达式
+    #[test]
+    fn test_to_schedule_format_monthly() {
+        let manager = CrontabManager::new();
+        
+        assert_eq!(manager.to_schedule_format("@monthly"), "0 0 0 1 * *");
+    }
+
+    /// 测试 build_crontab 带环境变量
+    #[test]
+    fn test_build_crontab_with_env() {
+        let manager = CrontabManager::new();
+        
+        let mut env_vars = HashMap::new();
+        env_vars.insert("PATH".to_string(), "/usr/bin".to_string());
+        
+        let content = manager.build_crontab(&[], &[], &env_vars);
+        assert!(content.contains("PATH=/usr/bin"));
+    }
 }
+

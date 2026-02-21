@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 /// Error types for svcmgr
 use std::fmt;
 

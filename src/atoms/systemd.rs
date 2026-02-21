@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 /// Systemd service management atom
 /// 
 /// This module provides systemd user service management capabilities:
@@ -6,7 +8,6 @@
 /// - Status query (active state, PID, memory, logs)
 /// - Transient units for temporary tasks
 /// - Journal log query with time filtering
-
 use crate::error::{Error, Result};
 use chrono::{DateTime, Utc};
 use futures::stream::Stream;
@@ -212,6 +213,7 @@ pub trait SystemdAtom {
 /// Systemd manager using systemctl --user
 pub struct SystemdManager {
     unit_dir: PathBuf,
+    #[allow(dead_code)]
     git_managed: bool,
 }
 
@@ -358,11 +360,11 @@ impl SystemdManager {
                 if let Some(pid_str) = line.split_whitespace().nth(2) {
                     status.pid = pid_str.parse().ok();
                 }
-            } else if line.starts_with("Memory:") {
-                if let Some(mem_str) = line.split_whitespace().nth(1) {
-                    // Parse memory size (e.g., "4.5M" -> bytes)
-                    status.memory = Self::parse_memory_size(mem_str);
-                }
+            } else if line.starts_with("Memory:")
+                && let Some(mem_str) = line.split_whitespace().nth(1)
+            {
+                // Parse memory size (e.g., "4.5M" -> bytes)
+                status.memory = Self::parse_memory_size(mem_str);
             }
         }
 
@@ -372,12 +374,12 @@ impl SystemdManager {
     /// Parse memory size string (e.g., "4.5M" -> bytes)
     fn parse_memory_size(s: &str) -> Option<u64> {
         let s = s.trim();
-        let (num_str, unit) = if s.ends_with('K') {
-            (&s[..s.len()-1], 1024)
-        } else if s.ends_with('M') {
-            (&s[..s.len()-1], 1024 * 1024)
-        } else if s.ends_with('G') {
-            (&s[..s.len()-1], 1024 * 1024 * 1024)
+        let (num_str, unit) = if let Some(stripped) = s.strip_suffix('K') {
+            (stripped, 1024)
+        } else if let Some(stripped) = s.strip_suffix('M') {
+            (stripped, 1024 * 1024)
+        } else if let Some(stripped) = s.strip_suffix('G') {
+            (stripped, 1024 * 1024 * 1024)
         } else {
             (s, 1)
         };
@@ -708,5 +710,48 @@ another.service         loaded inactive dead    Another Service
         assert_eq!(units[0].active_state, ActiveState::Active);
         assert_eq!(units[1].name, "another.service");
         assert_eq!(units[1].active_state, ActiveState::Inactive);
+    }
+
+    /// 测试 parse_memory_size 无效输入
+    #[test]
+    fn test_parse_memory_size_invalid() {
+        assert_eq!(SystemdManager::parse_memory_size("invalid"), None);
+        assert_eq!(SystemdManager::parse_memory_size(""), None);
+    }
+
+    /// 测试 parse_load_state 覆盖所有枚举值
+    #[test]
+    fn test_parse_load_state_all_variants() {
+        assert_eq!(SystemdManager::parse_load_state("loaded"), LoadState::Loaded);
+        assert_eq!(SystemdManager::parse_load_state("not-found"), LoadState::NotFound);
+        assert_eq!(SystemdManager::parse_load_state("error"), LoadState::Error);
+        assert_eq!(SystemdManager::parse_load_state("masked"), LoadState::Masked);
+        assert_eq!(SystemdManager::parse_load_state("bad-setting"), LoadState::BadSetting);
+        assert_eq!(SystemdManager::parse_load_state("unknown_state"), LoadState::Error);
+    }
+
+    /// 测试 parse_active_state 覆盖所有枚举值
+    #[test]
+    fn test_parse_active_state_all_variants() {
+        assert_eq!(SystemdManager::parse_active_state("active"), ActiveState::Active);
+        assert_eq!(SystemdManager::parse_active_state("inactive"), ActiveState::Inactive);
+        assert_eq!(SystemdManager::parse_active_state("failed"), ActiveState::Failed);
+        assert_eq!(SystemdManager::parse_active_state("activating"), ActiveState::Activating);
+        assert_eq!(SystemdManager::parse_active_state("deactivating"), ActiveState::Deactivating);
+        assert_eq!(SystemdManager::parse_active_state("reloading"), ActiveState::Reloading);
+        assert_eq!(SystemdManager::parse_active_state("unknown_state"), ActiveState::Inactive);
+    }
+
+    /// 测试 parse_unit_list 空输出
+    #[test]
+    fn test_parse_unit_list_empty() {
+        let tmpdir = std::env::temp_dir().join("svcmgr-test-systemd");
+        let manager = SystemdManager::new(tmpdir, false);
+        
+        let units = manager.parse_unit_list("");
+        assert_eq!(units.len(), 0);
+        
+        let units = manager.parse_unit_list("UNIT LOAD ACTIVE SUB DESCRIPTION");
+        assert_eq!(units.len(), 0);
     }
 }
