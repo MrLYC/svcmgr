@@ -1,0 +1,5 @@
+# TCP proxy for port {{ listen_port }} -> {{ upstream }}
+server {
+    listen {{ listen_port }};
+    proxy_pass {{ upstream }};
+}

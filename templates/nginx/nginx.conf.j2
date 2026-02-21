@@ -1,0 +1,39 @@
+user {{ user }};
+worker_processes {{ worker_processes }};
+error_log {{ error_log }} {{ error_log_level }};
+pid {{ pid_file }};
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+    
+    access_log {{ access_log }};
+    
+    sendfile on;
+    tcp_nopush on;
+    tcp_nodelay on;
+    keepalive_timeout 65;
+    types_hash_max_size 2048;
+    
+    server {
+        listen {{ listen_port }};
+        server_name _;
+        
+        # 包含动态配置
+        include {{ config_dir }}/conf.d/*.conf;
+        
+        # 默认重定向
+        location = / {
+            return 302 /svcmgr;
+        }
+    }
+}
+
+# TCP/UDP 代理
+stream {
+    include {{ config_dir }}/conf.d/tcp-proxies.conf;
+}

@@ -27,6 +27,15 @@ pub enum Error {
         stderr: String,
     },
 
+    /// Invalid configuration
+    InvalidConfig { reason: String },
+
+    /// Duplicate location
+    DuplicateLocation { location: String },
+
+    /// Port already in use
+    PortInUse { port: u16 },
+
     /// Generic error
     Other(String),
 }
@@ -53,6 +62,11 @@ impl fmt::Display for Error {
                 }
                 Ok(())
             }
+            Error::InvalidConfig { reason } => write!(f, "Invalid configuration: {}", reason),
+            Error::DuplicateLocation { location } => {
+                write!(f, "Duplicate location: {}", location)
+            }
+            Error::PortInUse { port } => write!(f, "Port {} already in use", port),
             Error::Other(msg) => write!(f, "{}", msg),
         }
     }

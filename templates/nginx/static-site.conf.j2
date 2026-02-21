@@ -1,0 +1,14 @@
+# Static site for {{ location }}
+location {{ location }} {
+    {% if alias %}
+    alias {{ root }};
+    {% else %}
+    root {{ root }};
+    {% endif %}
+    {% if autoindex %}
+    autoindex on;
+    {% endif %}
+    {% if index %}
+    index {{ index | join(' ') }};
+    {% endif %}
+}
