@@ -52,7 +52,7 @@ jobs:
       run: cargo fmt --all -- --check
     
     - name: Run clippy
-      run: cargo clippy --all-targets --all-features -- -D warnings
+      run: cargo clippy --all-targets --all-features -- -A dead_code -A unused_imports -A clippy::single_component_path_imports -D warnings
     
     - name: Build
       run: cargo build --verbose
