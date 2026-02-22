@@ -61,6 +61,12 @@ pub enum Commands {
         #[command(subcommand)]
         action: ConfigAction,
     },
+
+    #[command(about = "Manage Web TTY instances")]
+    Tty {
+        #[command(subcommand)]
+        action: TtyAction,
+    },
 }
 
 #[derive(Subcommand)]
@@ -498,6 +504,39 @@ pub enum ConfigAction {
     },
 }
 
+#[derive(Subcommand)]
+pub enum TtyAction {
+    #[command(about = "Create a new TTY instance")]
+    Create {
+        #[arg(help = "TTY instance name")]
+        name: String,
+        #[arg(short, long, help = "Command to execute (default: bash)")]
+        command: Option<String>,
+        #[arg(
+            short,
+            long,
+            help = "Port to listen on (auto-allocate if not specified)"
+        )]
+        port: Option<u16>,
+        #[arg(short, long, help = "Read-only mode")]
+        readonly: bool,
+        #[arg(short = 'u', long, help = "Credential (username:password)")]
+        credential: Option<String>,
+    },
+    #[command(about = "List all TTY instances")]
+    List,
+    #[command(about = "Remove a TTY instance")]
+    Remove {
+        #[arg(help = "TTY instance name")]
+        name: String,
+    },
+    #[command(about = "Make a transient TTY instance persistent")]
+    Persist {
+        #[arg(help = "TTY instance name")]
+        name: String,
+    },
+}
+
 fn parse_key_val(s: &str) -> Result<(String, String), String> {
     let pos = s
         .find('=')
@@ -514,3 +553,4 @@ pub mod service;
 pub mod setup;
 pub mod teardown;
 pub mod tunnel;
+pub mod webtty;

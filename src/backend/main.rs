@@ -23,6 +23,7 @@ async fn main() {
         Commands::Nginx { action } => cli::nginx::handle_nginx_command(action).await,
         Commands::Tunnel { action } => cli::tunnel::handle_tunnel_command(action).await,
         Commands::Config { action } => cli::config::handle_config_command(action).await,
+        Commands::Tty { action } => cli::webtty::handle_tty_command(action).await,
     };
 
     if let Err(e) = result {
