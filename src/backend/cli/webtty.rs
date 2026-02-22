@@ -1,12 +1,11 @@
+use crate::atoms::SupervisorManager;
 use crate::atoms::proxy::NginxManager;
-use crate::atoms::systemd::SystemdManager;
 use crate::cli::TtyAction;
 use crate::error::Result;
 use crate::features::{TtyConfig, TtyStatus, WebTtyManager};
-use std::path::PathBuf;
 
 pub async fn handle_tty_command(action: TtyAction) -> Result<()> {
-    let manager = create_default_manager();
+    let manager = create_default_manager()?;
 
     match action {
         TtyAction::Create {
@@ -23,7 +22,7 @@ pub async fn handle_tty_command(action: TtyAction) -> Result<()> {
 }
 
 async fn create_tty(
-    manager: &WebTtyManager<SystemdManager, NginxManager>,
+    manager: &WebTtyManager<SupervisorManager, NginxManager>,
     name: String,
     command: Option<String>,
     port: Option<u16>,
@@ -49,7 +48,7 @@ async fn create_tty(
     Ok(())
 }
 
-async fn list_ttys(manager: &WebTtyManager<SystemdManager, NginxManager>) -> Result<()> {
+async fn list_ttys(manager: &WebTtyManager<SupervisorManager, NginxManager>) -> Result<()> {
     let instances = manager.list().await?;
 
     if instances.is_empty() {
@@ -81,7 +80,7 @@ async fn list_ttys(manager: &WebTtyManager<SystemdManager, NginxManager>) -> Res
 }
 
 async fn remove_tty(
-    manager: &WebTtyManager<SystemdManager, NginxManager>,
+    manager: &WebTtyManager<SupervisorManager, NginxManager>,
     name: String,
 ) -> Result<()> {
     manager.remove(&name).await?;
@@ -90,7 +89,7 @@ async fn remove_tty(
 }
 
 async fn persist_tty(
-    manager: &WebTtyManager<SystemdManager, NginxManager>,
+    manager: &WebTtyManager<SupervisorManager, NginxManager>,
     name: String,
 ) -> Result<()> {
     let instance = manager.make_persistent(&name).await?;
@@ -99,18 +98,9 @@ async fn persist_tty(
     Ok(())
 }
 
-fn create_default_manager() -> WebTtyManager<SystemdManager, NginxManager> {
-    const DEFAULT_UNIT_DIR: &str = "/etc/systemd/system";
-    const DEFAULT_NGINX_CONFIG_DIR: &str = "/etc/nginx/conf.d";
-    const DEFAULT_NGINX_DATA_DIR: &str = "/var/lib/svcmgr/nginx";
+fn create_default_manager() -> Result<WebTtyManager<SupervisorManager, NginxManager>> {
+    let supervisor = SupervisorManager::default_config()?;
+    let proxy = NginxManager::default_config(supervisor.clone())?;
 
-    let unit_dir = PathBuf::from(DEFAULT_UNIT_DIR);
-    let nginx_config_dir = PathBuf::from(DEFAULT_NGINX_CONFIG_DIR);
-    let nginx_data_dir = PathBuf::from(DEFAULT_NGINX_DATA_DIR);
-
-    let systemd = SystemdManager::new(unit_dir.clone(), false);
-    let systemd_for_proxy = SystemdManager::new(unit_dir, false);
-    let proxy = NginxManager::new(nginx_config_dir, nginx_data_dir, systemd_for_proxy);
-
-    WebTtyManager::new(systemd, proxy)
+    Ok(WebTtyManager::new(supervisor, proxy))
 }

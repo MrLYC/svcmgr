@@ -1,12 +1,13 @@
-/// Crontab Task Management Feature
-///
-/// Combines CrontabAtom + TemplateAtom for high-level crontab task management.
-///
-/// Dependencies:
-/// - atoms::crontab: CrontabAtom
-/// - atoms::template: TemplateAtom
-use crate::atoms::crontab::{CronTask, CrontabAtom, CrontabManager as CrontabAtomManager};
+//! Cron Task Management Feature
+//!
+//! High-level cron task management built on the unified built-in supervisor.
+//!
+//! Dependencies:
+//! - atoms::supervisor: SchedulerAtom via SupervisorManager
+//! - atoms::template: TemplateAtom
+
 use crate::atoms::template::{TemplateAtom, TemplateContext, TemplateEngine};
+use crate::atoms::{CronTask, SchedulerAtom, SupervisorManager};
 use crate::error::{Error, Result};
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
@@ -74,9 +75,9 @@ impl From<CronTask> for TaskInfo {
 // CrontabTaskManager
 // ========================================
 
-/// High-level crontab task management
+/// High-level cron task management
 pub struct CrontabTaskManager {
-    crontab: CrontabAtomManager,
+    scheduler: SupervisorManager,
     template: TemplateEngine,
     #[allow(dead_code)]
     config_dir: PathBuf,
@@ -85,9 +86,14 @@ pub struct CrontabTaskManager {
 impl CrontabTaskManager {
     /// Create new manager with custom config directory
     pub fn new(config_dir: PathBuf) -> Result<Self> {
-        let template = TemplateEngine::new(config_dir.clone())?;
+        let template_dir = config_dir.join("managed").join("templates");
+        let supervisor_dir = config_dir.join("managed").join("supervisor");
+
+        let template = TemplateEngine::new(template_dir)?;
+        let scheduler = SupervisorManager::new(supervisor_dir, true);
+
         Ok(Self {
-            crontab: CrontabAtomManager::new(),
+            scheduler,
             template,
             config_dir,
         })
@@ -108,7 +114,7 @@ impl CrontabTaskManager {
 
     /// Create a new crontab task
     pub fn create_task(&self, config: &TaskConfig) -> Result<String> {
-        self.crontab.validate_expression(&config.expression)?;
+        self.scheduler.validate_expression(&config.expression)?;
 
         let command = if let Some(template_name) = &config.template {
             self.render_command(template_name, &config.variables)?
@@ -125,20 +131,20 @@ impl CrontabTaskManager {
             enabled: config.enabled,
         };
 
-        let task_id = self.crontab.add(&task)?;
+        let task_id = self.scheduler.add(&task)?;
 
         Ok(task_id)
     }
 
     /// List all managed crontab tasks
     pub fn list_tasks(&self) -> Result<Vec<TaskInfo>> {
-        let tasks = self.crontab.list()?;
+        let tasks = self.scheduler.list()?;
 
         let mut task_infos = Vec::new();
         for task in tasks {
             let mut info = TaskInfo::from(task.clone());
 
-            if let Ok(next_runs) = self.crontab.next_runs(&info.id, 1) {
+            if let Ok(next_runs) = self.scheduler.next_runs(&info.id, 1) {
                 info.next_run = next_runs.first().copied();
             }
 
@@ -150,10 +156,10 @@ impl CrontabTaskManager {
 
     /// Get a specific task by ID
     pub fn get_task(&self, task_id: &str) -> Result<TaskInfo> {
-        let task = self.crontab.get(task_id)?;
+        let task = self.scheduler.get(task_id)?;
         let mut info = TaskInfo::from(task);
 
-        if let Ok(next_runs) = self.crontab.next_runs(task_id, 1) {
+        if let Ok(next_runs) = self.scheduler.next_runs(task_id, 1) {
             info.next_run = next_runs.first().copied();
         }
 
@@ -162,7 +168,7 @@ impl CrontabTaskManager {
 
     /// Update an existing task
     pub fn update_task(&self, task_id: &str, config: &TaskConfig) -> Result<()> {
-        self.crontab.validate_expression(&config.expression)?;
+        self.scheduler.validate_expression(&config.expression)?;
 
         let command = if let Some(template_name) = &config.template {
             self.render_command(template_name, &config.variables)?
@@ -179,14 +185,14 @@ impl CrontabTaskManager {
             enabled: config.enabled,
         };
 
-        self.crontab.update(task_id, &task)?;
+        self.scheduler.update(task_id, &task)?;
 
         Ok(())
     }
 
     /// Delete a task
     pub fn delete_task(&self, task_id: &str) -> Result<()> {
-        self.crontab.remove(task_id)
+        self.scheduler.remove(task_id)
     }
 
     // ========================================
@@ -195,12 +201,12 @@ impl CrontabTaskManager {
 
     /// Get next N execution times for a task
     pub fn get_next_runs(&self, task_id: &str, count: usize) -> Result<Vec<DateTime<Utc>>> {
-        self.crontab.next_runs(task_id, count)
+        self.scheduler.next_runs(task_id, count)
     }
 
     /// Validate a cron expression
     pub fn validate_expression(&self, expression: &str) -> Result<bool> {
-        self.crontab.validate_expression(expression)
+        self.scheduler.validate_expression(expression)
     }
 
     // ========================================
@@ -209,12 +215,12 @@ impl CrontabTaskManager {
 
     /// Set a global crontab environment variable
     pub fn set_env(&self, key: &str, value: &str) -> Result<()> {
-        self.crontab.set_env(key, value)
+        self.scheduler.set_env(key, value)
     }
 
     /// Get all global crontab environment variables
     pub fn get_env(&self) -> Result<HashMap<String, String>> {
-        self.crontab.get_env()
+        self.scheduler.get_env()
     }
 
     // ========================================

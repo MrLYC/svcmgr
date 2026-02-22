@@ -1,5 +1,5 @@
+use crate::atoms::SupervisorManager;
 use crate::atoms::proxy::ProxyAtom;
-use crate::atoms::systemd::SystemdManager;
 use crate::cli::NginxAction;
 use crate::error::Result;
 use crate::features::NginxManager;
@@ -11,10 +11,9 @@ pub async fn handle_nginx_command(action: NginxAction) -> Result<()> {
     let home = env::var("HOME").expect("HOME environment variable not set");
     let config_dir = PathBuf::from(&home).join(".config/svcmgr/nginx");
     let data_dir = PathBuf::from(&home).join(".local/share/svcmgr/nginx");
-    let systemd_dir = PathBuf::from(&home).join(".config/systemd/user");
 
-    let systemd = SystemdManager::new(systemd_dir, true);
-    let manager = NginxManager::new(config_dir, data_dir, systemd);
+    let supervisor = SupervisorManager::default_config()?;
+    let manager = NginxManager::new(config_dir, data_dir, supervisor);
 
     match action {
         NginxAction::Start => start_nginx(&manager).await,

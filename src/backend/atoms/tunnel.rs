@@ -7,8 +7,8 @@
 /// - 隧道生命周期管理（创建、删除、列表、查询）
 /// - Ingress 配置管理（添加、删除、查询路由规则）
 /// - DNS 路由管理（DNS CNAME 记录）
-/// - 运行控制（启动、停止、状态查询，通过 SystemdAtom 委托）
-use crate::atoms::systemd::{SystemdAtom, SystemdManager};
+/// - 运行控制（启动、停止、状态查询，通过 SupervisorAtom 委托）
+use crate::atoms::supervisor::{SupervisorAtom, SupervisorManager};
 use crate::error::{Error, Result};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -134,7 +134,7 @@ pub trait TunnelAtom {
     /// - `name`: 隧道名称
     ///
     /// # 注意
-    /// - 会先停止关联的 systemd 服务
+    /// - 会先停止关联的 supervisor 服务
     /// - 删除隧道配置文件
     /// - 删除 Cloudflare 服务器上的隧道记录
     fn delete(&self, name: &str) -> impl std::future::Future<Output = Result<()>> + Send;
@@ -212,7 +212,7 @@ pub trait TunnelAtom {
         tunnel: &str,
     ) -> impl std::future::Future<Output = Result<Vec<DnsRoute>>> + Send;
 
-    // ===== 运行控制（委托给 SystemdAtom） =====
+    // ===== 运行控制（委托给 SupervisorAtom） =====
 
     /// 启动隧道服务
     ///
@@ -220,7 +220,7 @@ pub trait TunnelAtom {
     /// - `tunnel`: 隧道名称
     ///
     /// # 注意
-    /// - 通过 SystemdAtom 启动 cloudflared.service
+    /// - 通过 SupervisorAtom 启动 cloudflared 服务
     fn start(&self, tunnel: &str) -> impl std::future::Future<Output = Result<()>> + Send;
 
     /// 停止隧道服务
@@ -247,7 +247,7 @@ pub trait TunnelAtom {
 pub struct TunnelManager {
     config_dir: PathBuf,
     credentials_dir: PathBuf,
-    systemd: SystemdManager,
+    supervisor: SupervisorManager,
 }
 
 impl TunnelManager {
@@ -256,16 +256,20 @@ impl TunnelManager {
     /// # 参数
     /// - `config_dir`: 配置文件目录
     /// - `credentials_dir`: 凭证目录
-    /// - `systemd`: SystemdAtom 实现
-    pub fn new(config_dir: PathBuf, credentials_dir: PathBuf, systemd: SystemdManager) -> Self {
+    /// - `supervisor`: SupervisorAtom 实现
+    pub fn new(
+        config_dir: PathBuf,
+        credentials_dir: PathBuf,
+        supervisor: SupervisorManager,
+    ) -> Self {
         Self {
             config_dir,
             credentials_dir,
-            systemd,
+            supervisor,
         }
     }
 
-    pub fn default_config(systemd: SystemdManager) -> Result<Self> {
+    pub fn default_config(supervisor: SupervisorManager) -> Result<Self> {
         let home = std::env::var("HOME")
             .map_err(|_| Error::Config("HOME environment variable not set".to_string()))?;
         let config_dir = PathBuf::from(&home)
@@ -275,7 +279,7 @@ impl TunnelManager {
             .join("cloudflared");
         let credentials_dir = PathBuf::from(&home).join(".cloudflared");
 
-        Ok(Self::new(config_dir, credentials_dir, systemd))
+        Ok(Self::new(config_dir, credentials_dir, supervisor))
     }
 
     /// 运行 cloudflared 命令
@@ -431,36 +435,35 @@ impl TunnelManager {
         )
     }
 
-    /// 生成 systemd 服务名称
+    /// 生成服务名称
     fn service_name(&self, tunnel: &str) -> String {
         format!("cloudflared-{}", tunnel)
     }
 
-    /// 创建 systemd 服务单元
-    async fn create_systemd_service(&self, tunnel: &str) -> Result<()> {
+    /// 创建 supervisor 服务单元
+    async fn create_supervisor_service(&self, tunnel: &str) -> Result<()> {
         let service_name = self.service_name(tunnel);
         let config_file = self.config_path(tunnel);
 
+        // ServiceDef TOML content (used by built-in supervisor)
         let unit_content = format!(
-            r#"[Unit]
-Description=Cloudflare Tunnel - {}
-After=network.target
-
-[Service]
-Type=notify
-ExecStart=/usr/bin/cloudflared tunnel --config {} run {}
-Restart=on-failure
-RestartSec=5s
-
-[Install]
-WantedBy=default.target
+            r#"name = "{}"
+description = "Cloudflare Tunnel - {}"
+command = "/usr/bin/cloudflared"
+args = ["tunnel", "--config", "{}", "run", "{}"]
+env = {{}}
+restart_policy = "OnFailure"
+restart_sec = 5
+enabled = true
+stop_timeout_sec = 10
 "#,
+            service_name,
             tunnel,
             config_file.display(),
             tunnel
         );
 
-        self.systemd
+        self.supervisor
             .create_unit(&service_name, &unit_content)
             .await?;
         Ok(())
@@ -517,8 +520,8 @@ impl TunnelAtom for TunnelManager {
         let config_path = self.config_path(name);
         fs::write(&config_path, config_content).await?;
 
-        // 创建 systemd 服务
-        self.create_systemd_service(name).await?;
+        // 创建 supervisor 服务
+        self.create_supervisor_service(name).await?;
 
         Ok(TunnelInfo {
             id: tunnel_id,
@@ -531,8 +534,8 @@ impl TunnelAtom for TunnelManager {
     async fn delete(&self, name: &str) -> Result<()> {
         // 停止服务
         let service_name = self.service_name(name);
-        let _ = self.systemd.stop(&service_name).await;
-        let _ = self.systemd.delete_unit(&service_name).await;
+        let _ = self.supervisor.stop(&service_name).await;
+        let _ = self.supervisor.delete_unit(&service_name).await;
 
         // 删除隧道
         self.run_cloudflared(&["tunnel", "delete", name])?;
@@ -658,22 +661,25 @@ impl TunnelAtom for TunnelManager {
 
     async fn start(&self, tunnel: &str) -> Result<()> {
         let service_name = self.service_name(tunnel);
-        self.systemd.start(&service_name).await
+        self.supervisor.start(&service_name).await
     }
 
     async fn stop(&self, tunnel: &str) -> Result<()> {
         let service_name = self.service_name(tunnel);
-        self.systemd.stop(&service_name).await
+        self.supervisor.stop(&service_name).await
     }
 
     async fn status(&self, tunnel: &str) -> Result<TunnelStatus> {
         let service_name = self.service_name(tunnel);
-        let unit_status = self.systemd.status(&service_name).await?;
+        let unit_status = self.supervisor.status(&service_name).await?;
 
         // 解析日志获取连接数和错误信息
         let logs = self
-            .systemd
-            .logs(&service_name, &crate::atoms::systemd::LogOptions::default())
+            .supervisor
+            .logs(
+                &service_name,
+                &crate::atoms::supervisor::LogOptions::default(),
+            )
             .await?;
 
         let mut connections = 0;
@@ -692,7 +698,7 @@ impl TunnelAtom for TunnelManager {
         Ok(TunnelStatus {
             running: matches!(
                 unit_status.active_state,
-                crate::atoms::systemd::ActiveState::Active
+                crate::atoms::supervisor::ActiveState::Active
             ),
             connections,
             latency_ms: None, // TODO: 解析延迟信息
@@ -709,15 +715,15 @@ impl TunnelAtom for TunnelManager {
 mod tests {
     use super::*;
 
-    // Mock SystemdAtom 用于测试
+    // Mock SupervisorAtom 用于测试
     fn create_test_manager() -> TunnelManager {
         let tmpdir = std::env::temp_dir().join("svcmgr-test-tunnel");
         let credentials_dir = tmpdir.join("credentials");
-        let systemd_dir = tmpdir.join("systemd");
+        let supervisor_dir = tmpdir.join("supervisor");
         TunnelManager::new(
             tmpdir.clone(),
             credentials_dir,
-            SystemdManager::new(systemd_dir, false),
+            SupervisorManager::new(supervisor_dir, false),
         )
     }
 

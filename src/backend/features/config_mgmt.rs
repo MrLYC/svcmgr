@@ -43,7 +43,7 @@ impl ConfigManager {
         let status = self.git.init_repo().await?;
 
         // Create subdirectories
-        for subdir in &["systemd", "nginx", "cloudflared", "mise", "templates"] {
+        for subdir in &["supervisor", "nginx", "cloudflared", "mise", "templates"] {
             let dir = self.config_dir.join(subdir);
             std::fs::create_dir_all(&dir)?;
 
@@ -258,7 +258,7 @@ mod tests {
         manager.init().await.unwrap();
 
         manager
-            .auto_commit("systemd", "service", "create", "test")
+            .auto_commit("supervisor", "service", "create", "test")
             .await
             .unwrap();
         manager
