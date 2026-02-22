@@ -2,6 +2,7 @@ mod atoms;
 mod cli;
 mod config;
 mod error;
+mod features;
 
 use clap::Parser;
 use cli::{Cli, Commands};
@@ -16,6 +17,8 @@ async fn main() {
         Commands::Setup { force } => cli::setup::run(force).await,
         Commands::Run => cli::run::run().await,
         Commands::Teardown { force } => cli::teardown::run(force).await,
+        Commands::Service { action } => cli::service::handle_service_command(action).await,
+        Commands::Cron { action } => cli::cron::handle_cron_command(action).await,
     };
 
     if let Err(e) = result {

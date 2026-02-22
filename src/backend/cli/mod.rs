@@ -25,8 +25,186 @@ pub enum Commands {
         #[arg(short, long, help = "Force teardown without confirmation")]
         force: bool,
     },
+
+    #[command(about = "Manage systemd services")]
+    Service {
+        #[command(subcommand)]
+        action: ServiceAction,
+    },
+
+    #[command(about = "Manage crontab tasks")]
+    Cron {
+        #[command(subcommand)]
+        action: CronAction,
+    },
 }
 
+#[derive(Subcommand)]
+pub enum ServiceAction {
+    #[command(about = "List all managed services")]
+    List,
+
+    #[command(about = "Create a new service from template")]
+    Add {
+        #[arg(help = "Service name (must end with .service)")]
+        name: String,
+        #[arg(short, long, help = "Template name")]
+        template: String,
+        #[arg(short, long, help = "Template variables (key=value)", value_parser = parse_key_val)]
+        var: Vec<(String, String)>,
+    },
+
+    #[command(about = "Show service status and details")]
+    Status {
+        #[arg(help = "Service name")]
+        name: String,
+    },
+
+    #[command(about = "Start a service")]
+    Start {
+        #[arg(help = "Service name")]
+        name: String,
+    },
+
+    #[command(about = "Stop a service")]
+    Stop {
+        #[arg(help = "Service name")]
+        name: String,
+    },
+
+    #[command(about = "Restart a service")]
+    Restart {
+        #[arg(help = "Service name")]
+        name: String,
+    },
+
+    #[command(about = "Enable service (auto-start on boot)")]
+    Enable {
+        #[arg(help = "Service name")]
+        name: String,
+    },
+
+    #[command(about = "Disable service (remove auto-start)")]
+    Disable {
+        #[arg(help = "Service name")]
+        name: String,
+    },
+
+    #[command(about = "View service logs")]
+    Logs {
+        #[arg(help = "Service name")]
+        name: String,
+        #[arg(short, long, default_value = "100", help = "Number of lines to show")]
+        lines: usize,
+        #[arg(short, long, help = "Follow log output")]
+        follow: bool,
+    },
+
+    #[command(about = "Delete a service")]
+    Remove {
+        #[arg(help = "Service name")]
+        name: String,
+        #[arg(short, long, help = "Force removal without confirmation")]
+        force: bool,
+    },
+
+    #[command(about = "Run a transient service (temporary task)")]
+    Run {
+        #[arg(help = "Command to execute")]
+        command: Vec<String>,
+        #[arg(short, long, help = "Working directory")]
+        workdir: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum CronAction {
+    #[command(about = "List all managed cron tasks")]
+    List,
+
+    #[command(about = "Create a new cron task")]
+    Add {
+        #[arg(help = "Task ID/name")]
+        id: String,
+        #[arg(short, long, help = "Cron expression (e.g., '0 9 * * *' or '@daily')")]
+        expression: String,
+        #[arg(short, long, help = "Command to execute")]
+        command: String,
+        #[arg(short, long, default_value = "", help = "Task description")]
+        description: String,
+        #[arg(short = 't', long, help = "Template name")]
+        template: Option<String>,
+        #[arg(short = 'v', long, help = "Template variables (key=value)", value_parser = parse_key_val)]
+        var: Vec<(String, String)>,
+    },
+
+    #[command(about = "Show task details")]
+    Status {
+        #[arg(help = "Task ID")]
+        id: String,
+    },
+
+    #[command(about = "Update an existing cron task")]
+    Update {
+        #[arg(help = "Task ID")]
+        id: String,
+        #[arg(short, long, help = "New cron expression")]
+        expression: Option<String>,
+        #[arg(short, long, help = "New command")]
+        command: Option<String>,
+        #[arg(short, long, help = "New description")]
+        description: Option<String>,
+    },
+
+    #[command(about = "Delete a cron task")]
+    Remove {
+        #[arg(help = "Task ID")]
+        id: String,
+        #[arg(short, long, help = "Force removal without confirmation")]
+        force: bool,
+    },
+
+    #[command(about = "Show next N execution times for a task")]
+    Next {
+        #[arg(help = "Task ID")]
+        id: String,
+        #[arg(
+            short,
+            long,
+            default_value = "5",
+            help = "Number of executions to show"
+        )]
+        count: usize,
+    },
+
+    #[command(about = "Validate a cron expression")]
+    Validate {
+        #[arg(help = "Cron expression to validate")]
+        expression: String,
+    },
+
+    #[command(about = "Set environment variable for cron tasks")]
+    SetEnv {
+        #[arg(help = "Variable name")]
+        key: String,
+        #[arg(help = "Variable value")]
+        value: String,
+    },
+
+    #[command(about = "Show all environment variables")]
+    GetEnv,
+}
+
+/// Parse a single key-value pair
+fn parse_key_val(s: &str) -> Result<(String, String), String> {
+    let pos = s
+        .find('=')
+        .ok_or_else(|| format!("invalid KEY=value: no `=` found in `{s}`"))?;
+    Ok((s[..pos].to_string(), s[pos + 1..].to_string()))
+}
+
+pub mod cron;
 pub mod run;
+pub mod service;
 pub mod setup;
 pub mod teardown;
