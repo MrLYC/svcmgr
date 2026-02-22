@@ -19,6 +19,7 @@ async fn main() {
         Commands::Teardown { force } => cli::teardown::run(force).await,
         Commands::Service { action } => cli::service::handle_service_command(action).await,
         Commands::Cron { action } => cli::cron::handle_cron_command(action).await,
+        Commands::Mise { action } => cli::mise::handle_mise_command(action).await,
     };
 
     if let Err(e) = result {

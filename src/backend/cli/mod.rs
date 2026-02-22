@@ -37,6 +37,12 @@ pub enum Commands {
         #[command(subcommand)]
         action: CronAction,
     },
+
+    #[command(about = "Manage mise dependencies and tasks")]
+    Mise {
+        #[command(subcommand)]
+        action: MiseAction,
+    },
 }
 
 #[derive(Subcommand)]
@@ -195,6 +201,90 @@ pub enum CronAction {
     GetEnv,
 }
 
+#[derive(Subcommand)]
+pub enum MiseAction {
+    #[command(about = "Install a tool with specific version")]
+    Install {
+        #[arg(help = "Tool name (e.g., node, python, rust)")]
+        tool: String,
+        #[arg(help = "Version (e.g., 20.10.0, latest)")]
+        version: String,
+    },
+
+    #[command(about = "List all installed tools")]
+    ListTools,
+
+    #[command(about = "Update a tool to a new version")]
+    Update {
+        #[arg(help = "Tool name")]
+        tool: String,
+        #[arg(help = "New version")]
+        version: String,
+    },
+
+    #[command(about = "Remove an installed tool")]
+    Remove {
+        #[arg(help = "Tool name")]
+        tool: String,
+        #[arg(help = "Version to remove")]
+        version: String,
+        #[arg(short, long, help = "Force removal without confirmation")]
+        force: bool,
+    },
+
+    #[command(about = "Add a new task")]
+    AddTask {
+        #[arg(help = "Task name")]
+        name: String,
+        #[arg(short, long, help = "Commands to run")]
+        run: Vec<String>,
+        #[arg(short = 'd', long, help = "Task description")]
+        description: Option<String>,
+        #[arg(long, help = "Task dependencies")]
+        depends: Vec<String>,
+        #[arg(short = 't', long, help = "Template name")]
+        template: Option<String>,
+        #[arg(short = 'v', long, help = "Template variables (key=value)", value_parser = parse_key_val)]
+        var: Vec<(String, String)>,
+    },
+
+    #[command(about = "List all tasks")]
+    ListTasks,
+
+    #[command(about = "Execute a task")]
+    RunTask {
+        #[arg(help = "Task name")]
+        name: String,
+        #[arg(help = "Task arguments")]
+        args: Vec<String>,
+    },
+
+    #[command(about = "Delete a task")]
+    DeleteTask {
+        #[arg(help = "Task name")]
+        name: String,
+        #[arg(short, long, help = "Force deletion without confirmation")]
+        force: bool,
+    },
+
+    #[command(about = "Set environment variable")]
+    SetEnv {
+        #[arg(help = "Variable name")]
+        key: String,
+        #[arg(help = "Variable value")]
+        value: String,
+    },
+
+    #[command(about = "Show all environment variables")]
+    GetEnv,
+
+    #[command(about = "Delete an environment variable")]
+    DeleteEnv {
+        #[arg(help = "Variable name")]
+        key: String,
+    },
+}
+
 /// Parse a single key-value pair
 fn parse_key_val(s: &str) -> Result<(String, String), String> {
     let pos = s
@@ -204,6 +294,7 @@ fn parse_key_val(s: &str) -> Result<(String, String), String> {
 }
 
 pub mod cron;
+pub mod mise;
 pub mod run;
 pub mod service;
 pub mod setup;
