@@ -1,9 +1,9 @@
 #![allow(dead_code)]
 
-/// Systemd Service Management Feature (F01)
+/// Service Management Feature (F01)
 ///
-/// This module combines SystemdAtom and TemplateAtom to provide
-/// high-level systemd service management functionality.
+/// This module combines SupervisorAtom and TemplateAtom to provide
+/// high-level service management functionality.
 ///
 /// Features:
 /// - Service CRUD with template rendering
@@ -12,8 +12,8 @@
 /// - Transient service execution
 /// - Git-backed configuration management
 use crate::atoms::{
-    LogEntry, LogOptions, ProcessTree, SystemdAtom, SystemdManager, TemplateAtom, TemplateContext,
-    TemplateEngine, TransientOptions, TransientUnit, UnitInfo, UnitStatus,
+    LogEntry, LogOptions, ProcessTree, SupervisorAtom, SupervisorManager, TemplateAtom,
+    TemplateContext, TemplateEngine, TransientOptions, TransientUnit, UnitInfo, UnitStatus,
 };
 use crate::error::{Error, Result};
 use std::path::PathBuf;
@@ -56,13 +56,13 @@ impl From<UnitInfo> for ServiceInfo {
 // SystemdServiceManager
 // ========================================
 
-/// High-level systemd service manager
+/// High-level service manager
 ///
-/// Combines SystemdAtom (low-level systemd operations) and
+/// Combines SupervisorAtom (low-level process management) and
 /// TemplateAtom (configuration generation) to provide a complete
 /// service management solution.
 pub struct SystemdServiceManager {
-    systemd: SystemdManager,
+    supervisor: SupervisorManager,
     template: TemplateEngine,
     config_dir: PathBuf,
 }
@@ -70,14 +70,14 @@ pub struct SystemdServiceManager {
 impl SystemdServiceManager {
     /// Create a new service manager
     pub fn new(config_dir: PathBuf) -> Result<Self> {
-        let unit_dir = config_dir.join("systemd/user");
-        let template_dir = config_dir.join("templates");
+        let service_dir = config_dir.join("managed").join("supervisor");
+        let template_dir = config_dir.join("managed").join("templates");
 
-        let systemd = SystemdManager::new(unit_dir, true);
+        let supervisor = SupervisorManager::new(service_dir, true);
         let template = TemplateEngine::new(template_dir)?;
 
         Ok(Self {
-            systemd,
+            supervisor,
             template,
             config_dir,
         })
@@ -105,7 +105,7 @@ impl SystemdServiceManager {
         }
 
         // Check if service already exists
-        if self.systemd.get_unit(&config.name).await.is_ok() {
+        if self.supervisor.get_unit(&config.name).await.is_ok() {
             return Err(Error::InvalidArgument(format!(
                 "Service {} already exists",
                 config.name
@@ -113,27 +113,29 @@ impl SystemdServiceManager {
         }
 
         // Render template
-        let content = self.template.render(&config.template, &config.variables)?;
+        let mut variables = config.variables.clone();
+        variables.insert("name", &config.name);
+        let content = self.template.render(&config.template, &variables)?;
 
         // Create unit file
-        self.systemd.create_unit(&config.name, &content).await?;
+        self.supervisor.create_unit(&config.name, &content).await?;
 
         // Reload daemon
-        self.systemd.daemon_reload().await?;
+        self.supervisor.daemon_reload().await?;
 
         Ok(())
     }
 
     /// List all managed services
     pub async fn list_services(&self) -> Result<Vec<ServiceInfo>> {
-        let units = self.systemd.list_units().await?;
+        let units = self.supervisor.list_units().await?;
         Ok(units.into_iter().map(ServiceInfo::from).collect())
     }
 
     /// Get service details
     pub async fn get_service(&self, name: &str) -> Result<ServiceInfo> {
-        let unit = self.systemd.get_unit(name).await?;
-        let units = self.systemd.list_units().await?;
+        let unit = self.supervisor.get_unit(name).await?;
+        let units = self.supervisor.list_units().await?;
 
         let unit_info = units
             .into_iter()
@@ -153,24 +155,26 @@ impl SystemdServiceManager {
     /// Update service configuration
     pub async fn update_service(&self, config: &ServiceConfig) -> Result<()> {
         // Verify service exists
-        self.systemd.get_unit(&config.name).await?;
+        self.supervisor.get_unit(&config.name).await?;
 
         // Render new template
-        let content = self.template.render(&config.template, &config.variables)?;
+        let mut variables = config.variables.clone();
+        variables.insert("name", &config.name);
+        let content = self.template.render(&config.template, &variables)?;
 
         // Update unit file
-        self.systemd.update_unit(&config.name, &content).await?;
+        self.supervisor.update_unit(&config.name, &content).await?;
 
         // Reload daemon
-        self.systemd.daemon_reload().await?;
+        self.supervisor.daemon_reload().await?;
 
         Ok(())
     }
 
     /// Delete a service
     pub async fn delete_service(&self, name: &str) -> Result<()> {
-        self.systemd.delete_unit(name).await?;
-        self.systemd.daemon_reload().await?;
+        self.supervisor.delete_unit(name).await?;
+        self.supervisor.daemon_reload().await?;
         Ok(())
     }
 
@@ -180,32 +184,32 @@ impl SystemdServiceManager {
 
     /// Start a service
     pub async fn start_service(&self, name: &str) -> Result<()> {
-        self.systemd.start(name).await
+        self.supervisor.start(name).await
     }
 
     /// Stop a service
     pub async fn stop_service(&self, name: &str) -> Result<()> {
-        self.systemd.stop(name).await
+        self.supervisor.stop(name).await
     }
 
     /// Restart a service
     pub async fn restart_service(&self, name: &str) -> Result<()> {
-        self.systemd.restart(name).await
+        self.supervisor.restart(name).await
     }
 
     /// Reload service configuration (without restart)
     pub async fn reload_service(&self, name: &str) -> Result<()> {
-        self.systemd.reload(name).await
+        self.supervisor.reload(name).await
     }
 
     /// Enable service (auto-start on boot)
     pub async fn enable_service(&self, name: &str) -> Result<()> {
-        self.systemd.enable(name).await
+        self.supervisor.enable(name).await
     }
 
     /// Disable service (remove auto-start)
     pub async fn disable_service(&self, name: &str) -> Result<()> {
-        self.systemd.disable(name).await
+        self.supervisor.disable(name).await
     }
 
     // ========================================
@@ -214,17 +218,17 @@ impl SystemdServiceManager {
 
     /// Get service status
     pub async fn get_status(&self, name: &str) -> Result<UnitStatus> {
-        self.systemd.status(name).await
+        self.supervisor.status(name).await
     }
 
     /// Get process tree for a service
     pub async fn get_process_tree(&self, name: &str) -> Result<ProcessTree> {
-        self.systemd.process_tree(name).await
+        self.supervisor.process_tree(name).await
     }
 
     /// Query service logs
     pub async fn get_logs(&self, name: &str, options: &LogOptions) -> Result<Vec<LogEntry>> {
-        self.systemd.logs(name, options).await
+        self.supervisor.logs(name, options).await
     }
 
     // ========================================
@@ -233,17 +237,17 @@ impl SystemdServiceManager {
 
     /// Run a transient service (temporary task)
     pub async fn run_transient(&self, options: &TransientOptions) -> Result<TransientUnit> {
-        self.systemd.run_transient(options).await
+        self.supervisor.run_transient(options).await
     }
 
     /// List active transient units
     pub async fn list_transient(&self) -> Result<Vec<TransientUnit>> {
-        self.systemd.list_transient().await
+        self.supervisor.list_transient().await
     }
 
     /// Stop a transient unit
     pub async fn stop_transient(&self, name: &str) -> Result<()> {
-        self.systemd.stop_transient(name).await
+        self.supervisor.stop_transient(name).await
     }
 
     // ========================================
@@ -301,14 +305,14 @@ mod tests {
         let config_dir = temp_dir.path().to_path_buf();
 
         // Create required directories
-        std::fs::create_dir_all(config_dir.join("systemd/user")).unwrap();
-        std::fs::create_dir_all(config_dir.join("templates/systemd")).unwrap();
+        std::fs::create_dir_all(config_dir.join("managed/supervisor")).unwrap();
+        std::fs::create_dir_all(config_dir.join("managed/templates/systemd")).unwrap();
 
         // Create a simple test template
-        let template_path = config_dir.join("templates/systemd/simple.service.j2");
+        let template_path = config_dir.join("managed/templates/systemd/simple.service.j2");
         std::fs::write(
             &template_path,
-            "[Unit]\nDescription={{ description }}\n\n[Service]\nExecStart={{ command }}\n",
+            "name = \"{{ name }}\"\ndescription = \"{{ description }}\"\ncommand = \"{{ command }}\"\nargs = []\nenv = {}\nrestart_policy = \"No\"\nenabled = true\nrestart_sec = 1\nstop_timeout_sec = 10\n",
         )
         .unwrap();
 
@@ -321,8 +325,8 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let config_dir = temp_dir.path().to_path_buf();
 
-        std::fs::create_dir_all(config_dir.join("systemd/user")).unwrap();
-        std::fs::create_dir_all(config_dir.join("templates")).unwrap();
+        std::fs::create_dir_all(config_dir.join("managed/supervisor")).unwrap();
+        std::fs::create_dir_all(config_dir.join("managed/templates")).unwrap();
 
         let result = SystemdServiceManager::new(config_dir);
         assert!(result.is_ok());

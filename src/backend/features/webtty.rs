@@ -8,7 +8,7 @@
 //! - TTY 实例状态查询
 
 use crate::atoms::proxy::{ProxyAtom, TtyRoute};
-use crate::atoms::systemd::{ActiveState, SystemdAtom, TransientOptions, TransientUnit};
+use crate::atoms::{ActiveState, SupervisorAtom, TransientOptions, TransientUnit};
 use crate::error::{Error, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -63,13 +63,13 @@ pub enum TtyStatus {
 // WebTtyManager
 // ========================================
 
-pub struct WebTtyManager<S: SystemdAtom, P: ProxyAtom> {
+pub struct WebTtyManager<S: SupervisorAtom, P: ProxyAtom> {
     systemd: S,
     proxy: P,
     port_range: (u16, u16),
 }
 
-impl<S: SystemdAtom, P: ProxyAtom> WebTtyManager<S, P> {
+impl<S: SupervisorAtom, P: ProxyAtom> WebTtyManager<S, P> {
     /// 创建新的 WebTtyManager
     pub fn new(systemd: S, proxy: P) -> Self {
         Self {

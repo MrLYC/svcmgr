@@ -1,11 +1,11 @@
-use crate::atoms::systemd::SystemdManager;
+use crate::atoms::SupervisorManager;
 use crate::atoms::tunnel::{IngressRule, TunnelAtom};
 use crate::cli::TunnelAction;
 use crate::error::Result;
 use crate::features::TunnelManager;
 
 pub async fn handle_tunnel_command(action: TunnelAction) -> Result<()> {
-    let manager = TunnelManager::default_config(SystemdManager::default_config()?)?;
+    let manager = TunnelManager::default_config(SupervisorManager::default_config()?)?;
 
     match action {
         TunnelAction::Login => login(&manager).await,

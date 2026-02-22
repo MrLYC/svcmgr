@@ -1,23 +1,21 @@
-[Unit]
-Description={{ description | default(name ~ " service") }}
-After=network.target
-{% if requires -%}
-Requires={{ requires | join(" ") }}
-{% endif -%}
+# Built-in supervisor service template (TOML)
+#
+# This repository used to generate systemd unit files from templates.
+# After migrating to the built-in supervisor, the "unit" content is a TOML-serialized ServiceDef.
 
-[Service]
-Type=simple
-ExecStart={{ exec_start }}
+name = "{{ name }}"
+description = "{{ description | default(name ~ " service") }}"
+command = "{{ command | default(exec_start) }}"
+args = [{% if args %}{% for a in args %}"{{ a }}"{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}]
 {% if working_directory -%}
-WorkingDirectory={{ working_directory }}
+working_directory = "{{ working_directory }}"
 {% endif -%}
 {% if environment -%}
-{% for key, value in environment.items() -%}
-Environment="{{ key }}={{ value }}"
-{% endfor -%}
+env = { {% for key, value in environment.items() -%}"{{ key }}" = "{{ value }}"{% if not loop.last %}, {% endif %}{% endfor -%} }
+{% else -%}
+env = {}
 {% endif -%}
-Restart={{ restart | default("on-failure") }}
-RestartSec={{ restart_sec | default(5) }}
-
-[Install]
-WantedBy=multi-user.target
+restart_policy = "{{ restart_policy | default("OnFailure") }}"
+restart_sec = {{ restart_sec | default(1) }}
+enabled = true
+stop_timeout_sec = {{ stop_timeout_sec | default(10) }}

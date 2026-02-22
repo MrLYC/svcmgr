@@ -1092,6 +1092,7 @@ dependencies = [
  "dirs",
  "futures",
  "git2",
+ "libc",
  "minijinja",
  "mockall",
  "regex",

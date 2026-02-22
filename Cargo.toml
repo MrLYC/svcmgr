@@ -19,6 +19,7 @@ cron = "0.15.0"
 dirs = "6.0.0"
 futures = { version = "0.3.32", features = ["async-await"] }
 git2 = "0.20.4"
+libc = "0.2"
 minijinja = "2.5"
 regex = "1.11.1"
 serde = { version = "1.0.228", features = ["derive"] }

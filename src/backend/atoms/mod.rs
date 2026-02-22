@@ -3,7 +3,6 @@
 pub mod git;
 pub mod mise;
 pub mod proxy;
-pub mod scheduler;
 pub mod supervisor;
 pub mod template;
 pub mod tunnel;
@@ -20,7 +19,7 @@ pub use supervisor::{
     UnitStatus,
 };
 
-pub use scheduler::{CronTask, SchedulerAtom, SchedulerManager};
+pub use supervisor::{CronTask, SchedulerAtom};
 
 pub use proxy::{
     HttpProxyConfig, NginxManager, NginxStatus, ProxyAtom, StaticSiteConfig, TcpProxyConfig,
