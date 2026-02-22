@@ -6,3 +6,4 @@ pub use systemd_service::{ServiceConfig, SystemdServiceManager};
 
 pub use crate::atoms::mise::MiseManager;
 pub use crate::atoms::proxy::NginxManager;
+pub use crate::atoms::tunnel::TunnelManager;

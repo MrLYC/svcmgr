@@ -49,6 +49,12 @@ pub enum Commands {
         #[command(subcommand)]
         action: NginxAction,
     },
+
+    #[command(about = "Manage Cloudflare Tunnel connections")]
+    Tunnel {
+        #[command(subcommand)]
+        action: TunnelAction,
+    },
 }
 
 #[derive(Subcommand)]
@@ -385,6 +391,79 @@ pub enum NginxAction {
     },
 }
 
+#[derive(Subcommand)]
+pub enum TunnelAction {
+    #[command(about = "Authenticate with Cloudflare")]
+    Login,
+
+    #[command(about = "Create a new tunnel")]
+    Create {
+        #[arg(help = "Tunnel name")]
+        name: String,
+    },
+
+    #[command(about = "List all tunnels")]
+    List,
+
+    #[command(about = "Delete a tunnel")]
+    Delete {
+        #[arg(help = "Tunnel ID or name")]
+        tunnel_id: String,
+    },
+
+    #[command(about = "Get tunnel information")]
+    Info {
+        #[arg(help = "Tunnel ID or name")]
+        tunnel_id: String,
+    },
+
+    #[command(about = "Add ingress rule")]
+    AddIngress {
+        #[arg(help = "Tunnel ID or name")]
+        tunnel_id: String,
+        #[arg(help = "Hostname (e.g., app.example.com)")]
+        hostname: String,
+        #[arg(help = "Service URL (e.g., http://localhost:3000)")]
+        service: String,
+        #[arg(short, long, help = "Path prefix")]
+        path: Option<String>,
+    },
+
+    #[command(about = "Remove ingress rule")]
+    RemoveIngress {
+        #[arg(help = "Tunnel ID or name")]
+        tunnel_id: String,
+        #[arg(help = "Hostname to remove")]
+        hostname: String,
+    },
+
+    #[command(about = "Route DNS to tunnel")]
+    RouteDns {
+        #[arg(help = "Tunnel ID or name")]
+        tunnel_id: String,
+        #[arg(help = "Hostname to route (e.g., app.example.com)")]
+        hostname: String,
+    },
+
+    #[command(about = "Start tunnel service")]
+    Start {
+        #[arg(help = "Tunnel ID or name")]
+        tunnel_id: String,
+    },
+
+    #[command(about = "Stop tunnel service")]
+    Stop {
+        #[arg(help = "Tunnel ID or name")]
+        tunnel_id: String,
+    },
+
+    #[command(about = "Show tunnel status")]
+    Status {
+        #[arg(help = "Tunnel ID or name")]
+        tunnel_id: String,
+    },
+}
+
 fn parse_key_val(s: &str) -> Result<(String, String), String> {
     let pos = s
         .find('=')
@@ -399,3 +478,4 @@ pub mod run;
 pub mod service;
 pub mod setup;
 pub mod teardown;
+pub mod tunnel;

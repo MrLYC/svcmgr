@@ -21,6 +21,7 @@ async fn main() {
         Commands::Cron { action } => cli::cron::handle_cron_command(action).await,
         Commands::Mise { action } => cli::mise::handle_mise_command(action).await,
         Commands::Nginx { action } => cli::nginx::handle_nginx_command(action).await,
+        Commands::Tunnel { action } => cli::tunnel::handle_tunnel_command(action).await,
     };
 
     if let Err(e) = result {
