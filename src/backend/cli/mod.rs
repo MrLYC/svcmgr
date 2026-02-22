@@ -55,6 +55,12 @@ pub enum Commands {
         #[command(subcommand)]
         action: TunnelAction,
     },
+
+    #[command(about = "Manage configuration files with version control")]
+    Config {
+        #[command(subcommand)]
+        action: ConfigAction,
+    },
 }
 
 #[derive(Subcommand)]
@@ -464,6 +470,34 @@ pub enum TunnelAction {
     },
 }
 
+#[derive(Subcommand)]
+pub enum ConfigAction {
+    Init,
+    Log {
+        #[arg(short, long, default_value = "10")]
+        limit: usize,
+    },
+    Show {
+        #[arg(help = "Commit hash")]
+        commit: String,
+    },
+    Diff {
+        #[arg(help = "Source commit")]
+        from: String,
+        #[arg(help = "Target commit")]
+        to: String,
+    },
+    Rollback {
+        #[arg(help = "Commit hash to rollback to")]
+        commit: String,
+    },
+    Backup,
+    Restore {
+        #[arg(help = "Backup name (tag)")]
+        name: String,
+    },
+}
+
 fn parse_key_val(s: &str) -> Result<(String, String), String> {
     let pos = s
         .find('=')
@@ -471,6 +505,7 @@ fn parse_key_val(s: &str) -> Result<(String, String), String> {
     Ok((s[..pos].to_string(), s[pos + 1..].to_string()))
 }
 
+pub mod config;
 pub mod cron;
 pub mod mise;
 pub mod nginx;
