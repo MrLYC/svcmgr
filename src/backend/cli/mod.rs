@@ -43,6 +43,12 @@ pub enum Commands {
         #[command(subcommand)]
         action: MiseAction,
     },
+
+    #[command(about = "Manage nginx proxy configurations")]
+    Nginx {
+        #[command(subcommand)]
+        action: NginxAction,
+    },
 }
 
 #[derive(Subcommand)]
@@ -285,7 +291,100 @@ pub enum MiseAction {
     },
 }
 
-/// Parse a single key-value pair
+#[derive(Subcommand)]
+pub enum NginxAction {
+    #[command(about = "Start nginx service")]
+    Start,
+
+    #[command(about = "Stop nginx service")]
+    Stop,
+
+    #[command(about = "Reload nginx configuration")]
+    Reload,
+
+    #[command(about = "Show nginx status")]
+    Status,
+
+    #[command(about = "Test nginx configuration")]
+    Test,
+
+    #[command(about = "Add HTTP proxy configuration")]
+    AddProxy {
+        #[arg(help = "Location path (e.g., /api)")]
+        location: String,
+        #[arg(help = "Upstream target (e.g., http://localhost:3000)")]
+        upstream: String,
+        #[arg(short, long, help = "Enable WebSocket support")]
+        websocket: bool,
+    },
+
+    #[command(about = "Add static file site")]
+    AddStatic {
+        #[arg(help = "Location path (e.g., /static)")]
+        location: String,
+        #[arg(help = "Root directory path")]
+        root: String,
+        #[arg(short, long, help = "Enable directory listing")]
+        autoindex: bool,
+        #[arg(short, long, help = "Index files (comma-separated)")]
+        index: Option<String>,
+    },
+
+    #[command(about = "Add TCP proxy configuration")]
+    AddTcp {
+        #[arg(help = "Listen port")]
+        port: u16,
+        #[arg(help = "Upstream target (e.g., postgres.internal:5432)")]
+        upstream: String,
+    },
+
+    #[command(about = "Add TTY route")]
+    AddTty {
+        #[arg(help = "TTY name")]
+        name: String,
+        #[arg(help = "TTY service port")]
+        port: u16,
+    },
+
+    #[command(about = "List all proxy configurations")]
+    List {
+        #[arg(short, long, help = "Type filter: http, tcp, static, tty")]
+        type_filter: Option<String>,
+    },
+
+    #[command(about = "Remove HTTP proxy")]
+    RemoveProxy {
+        #[arg(help = "Location path")]
+        location: String,
+    },
+
+    #[command(about = "Remove static site")]
+    RemoveStatic {
+        #[arg(help = "Location path")]
+        location: String,
+    },
+
+    #[command(about = "Remove TCP proxy")]
+    RemoveTcp {
+        #[arg(help = "Listen port")]
+        port: u16,
+    },
+
+    #[command(about = "Remove TTY route")]
+    RemoveTty {
+        #[arg(help = "TTY name")]
+        name: String,
+    },
+
+    #[command(about = "View nginx logs")]
+    Logs {
+        #[arg(short, long, help = "Show error log instead of access log")]
+        error: bool,
+        #[arg(short, long, default_value = "50", help = "Number of lines to show")]
+        lines: usize,
+    },
+}
+
 fn parse_key_val(s: &str) -> Result<(String, String), String> {
     let pos = s
         .find('=')
@@ -295,6 +394,7 @@ fn parse_key_val(s: &str) -> Result<(String, String), String> {
 
 pub mod cron;
 pub mod mise;
+pub mod nginx;
 pub mod run;
 pub mod service;
 pub mod setup;
