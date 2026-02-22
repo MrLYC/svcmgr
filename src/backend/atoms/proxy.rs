@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use crate::atoms::systemd::{SystemdAtom, SystemdManager};
+use crate::atoms::supervisor::{SupervisorAtom, SupervisorManager};
 use crate::error::{Error, Result};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -82,24 +82,24 @@ pub trait ProxyAtom {
 pub struct NginxManager {
     config_dir: PathBuf,
     data_dir: PathBuf,
-    systemd: SystemdManager,
+    supervisor: SupervisorManager,
 }
 
 impl NginxManager {
-    pub fn new(config_dir: PathBuf, data_dir: PathBuf, systemd: SystemdManager) -> Self {
+    pub fn new(config_dir: PathBuf, data_dir: PathBuf, supervisor: SupervisorManager) -> Self {
         Self {
             config_dir,
             data_dir,
-            systemd,
+            supervisor,
         }
     }
 
-    pub fn default_config(systemd: SystemdManager) -> Result<Self> {
+    pub fn default_config(supervisor: SupervisorManager) -> Result<Self> {
         let home = std::env::var("HOME")
             .map_err(|_| Error::Config("HOME environment variable not set".to_string()))?;
         let config_dir = PathBuf::from(&home).join(".config/svcmgr/nginx");
         let data_dir = PathBuf::from(&home).join(".local/share/svcmgr/nginx");
-        Ok(Self::new(config_dir, data_dir, systemd))
+        Ok(Self::new(config_dir, data_dir, supervisor))
     }
 
     fn nginx_conf_path(&self) -> PathBuf {
@@ -427,11 +427,11 @@ impl ProxyAtom for NginxManager {
             ));
         }
 
-        self.systemd.start("nginx").await
+        self.supervisor.start("nginx").await
     }
 
     async fn stop(&self) -> Result<()> {
-        self.systemd.stop("nginx").await
+        self.supervisor.stop("nginx").await
     }
 
     async fn reload(&self) -> Result<()> {
@@ -719,11 +719,11 @@ mod tests {
     fn create_test_manager() -> NginxManager {
         let tmpdir = std::env::temp_dir().join("svcmgr-test-nginx");
         let data_dir = tmpdir.join("data");
-        let systemd_dir = tmpdir.join("systemd");
+        let supervisor_dir = tmpdir.join("supervisor");
         NginxManager::new(
             tmpdir.clone(),
             data_dir,
-            SystemdManager::new(systemd_dir, false),
+            SupervisorManager::new(supervisor_dir, false),
         )
     }
 
@@ -731,11 +731,11 @@ mod tests {
     fn test_nginx_manager_creation() {
         let tmpdir = std::env::temp_dir().join("svcmgr-test-nginx");
         let data_dir = tmpdir.join("data");
-        let systemd_dir = tmpdir.join("systemd");
+        let supervisor_dir = tmpdir.join("supervisor");
         let manager = NginxManager::new(
             tmpdir.clone(),
             data_dir.clone(),
-            SystemdManager::new(systemd_dir, false),
+            SupervisorManager::new(supervisor_dir, false),
         );
         assert_eq!(manager.config_dir, tmpdir);
         assert_eq!(manager.data_dir, data_dir);

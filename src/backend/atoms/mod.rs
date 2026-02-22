@@ -1,10 +1,10 @@
 #![allow(unused_imports)]
 
-pub mod crontab;
 pub mod git;
 pub mod mise;
 pub mod proxy;
-pub mod systemd;
+pub mod scheduler;
+pub mod supervisor;
 pub mod template;
 pub mod tunnel;
 
@@ -14,10 +14,13 @@ pub use template::{
     ValidationResult,
 };
 
-pub use systemd::{
+pub use supervisor::{
     ActiveState, LoadState, LogEntry, LogOptions, LogPriority, ProcessInfo, ProcessTree,
-    SystemdAtom, SystemdManager, TransientOptions, TransientUnit, UnitFile, UnitInfo, UnitStatus,
+    SupervisorAtom, SupervisorManager, TransientOptions, TransientUnit, UnitFile, UnitInfo,
+    UnitStatus,
 };
+
+pub use scheduler::{CronTask, SchedulerAtom, SchedulerManager};
 
 pub use proxy::{
     HttpProxyConfig, NginxManager, NginxStatus, ProxyAtom, StaticSiteConfig, TcpProxyConfig,
