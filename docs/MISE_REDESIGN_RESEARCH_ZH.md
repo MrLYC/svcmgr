@@ -13,16 +13,17 @@
 3. [pitchfork 参考分析](#3-pitchfork-参考分析)
 4. [可行性分析](#4-可行性分析)
 5. [新架构设计](#5-新架构设计)
-6. [配置文件设计](#6-配置文件设计)
-7. [多任务调度引擎设计](#7-多任务调度引擎设计)
-8. [子进程管理与资源限制](#8-子进程管理与资源限制)
-9. [Git 配置版本管理](#9-git-配置版本管理)
-10. [Web 服务与代理设计](#10-web-服务与代理设计)
-11. [功能开关机制](#11-功能开关机制)
-12. [API 设计](#12-api-设计)
-13. [改造影响分析](#13-改造影响分析)
-14. [问题与风险](#14-问题与风险)
-15. [推荐实施路径](#15-推荐实施路径)
+6. [mise 解耦架构设计](#6-mise-解耦架构设计)
+7. [配置文件设计](#7-配置文件设计)
+8. [多任务调度引擎设计](#8-多任务调度引擎设计)
+9. [子进程管理与资源限制](#9-子进程管理与资源限制)
+10. [Git 配置版本管理](#10-git-配置版本管理)
+11. [Web 服务与代理设计](#11-web-服务与代理设计)
+12. [功能开关机制](#12-功能开关机制)
+13. [API 设计](#13-api-设计)
+14. [改造影响分析](#14-改造影响分析)
+15. [问题与风险](#15-问题与风险)
+16. [推荐实施路径](#16-推荐实施路径)
 
 ---
 
@@ -257,9 +258,529 @@ pitchfork 解决了 mise 缺乏的进程管理能力，但：
 
 ---
 
-## 6. 配置文件设计
+## 6. mise 解耦架构设计
 
-### 6.1 配置文件层级
+mise 采用 CalVer 版本号（如 `v2026.2.17`），迭代频繁（近乎每周发布），且历史上有过多次配置格式调整（如 `.mise.toml` → `mise.toml`、`task_*` 平铺设置合并为 `task.*` 嵌套结构）。svcmgr 深度依赖 mise 的配置格式和 CLI 接口，必须在架构层面做好解耦设计，以跟随 mise 的演进而不被破坏。
+
+### 6.1 核心设计原则
+
+| 原则 | 说明 |
+|------|------|
+| **面向接口而非实现** | svcmgr 内部通过 trait 抽象 mise 的每项能力，不直接耦合 CLI 命令字符串或 TOML 段名 |
+| **适配器隔离** | 所有 mise 交互集中在独立的适配器模块（`adapters/mise/`），业务逻辑层不直接调用 mise |
+| **配置分层** | svcmgr 自有配置（`x-` 段或独立文件）与 mise 原生配置在解析层分离 |
+| **版本感知** | 运行时检测 mise 版本，根据版本选择兼容的交互策略 |
+| **优雅降级** | 当 mise 行为变化导致特定功能不可用时，降级到备选方案而非崩溃 |
+
+### 6.2 适配器层架构（Anti-Corruption Layer）
+
+采用**端口-适配器（Port-Adapter）**模式，在 svcmgr 核心与 mise 之间建立防腐层：
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    svcmgr 核心业务逻辑                        │
+│  （调度引擎、进程管理、Web 服务、配置管理）                      │
+├──────────────────────┬──────────────────────────────────────┤
+│      Port 层         │  Rust trait 定义（纯接口契约）          │
+│  ┌─────────────────┐ │  ┌──────────────────────────────┐    │
+│  │ DependencyPort  │ │  │ fn install(tool, ver)         │    │
+│  │ TaskPort        │ │  │ fn run_task(name, args)       │    │
+│  │ EnvPort         │ │  │ fn get_env() -> HashMap       │    │
+│  │ ConfigPort      │ │  │ fn list_config_files()        │    │
+│  └─────────────────┘ │  └──────────────────────────────┘    │
+├──────────────────────┴──────────────────────────────────────┤
+│      Adapter 层（adapters/mise/）                             │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
+│  │ MiseV2026    │  │ MiseV2025    │  │ MockAdapter  │       │
+│  │ Adapter      │  │ Adapter      │  │ (测试用)      │       │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘       │
+│         │                 │                 │               │
+│  ┌──────┴─────────────────┴─────────────────┴──────┐        │
+│  │          AdapterFactory（版本检测 + 路由）         │        │
+│  └─────────────────────────────────────────────────┘        │
+├─────────────────────────────────────────────────────────────┤
+│  mise CLI / mise 配置文件 / mise 环境变量                      │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 6.3 Port 接口定义
+
+为 mise 的三大核心能力各定义一个 Port trait：
+
+```rust
+/// 依赖管理端口
+#[async_trait]
+pub trait DependencyPort: Send + Sync {
+    /// 安装指定工具和版本
+    async fn install(&self, tool: &str, version: &str) -> Result<()>;
+    /// 列出已安装的工具
+    async fn list_installed(&self) -> Result<Vec<ToolInfo>>;
+    /// 设置当前目录使用的工具版本
+    async fn use_tool(&self, tool: &str, version: &str) -> Result<()>;
+    /// 移除工具
+    async fn remove(&self, tool: &str, version: &str) -> Result<()>;
+    /// 获取 mise 版本信息（用于兼容性检测）
+    fn mise_version(&self) -> &MiseVersion;
+}
+
+/// 任务管理端口
+#[async_trait]
+pub trait TaskPort: Send + Sync {
+    /// 运行指定任务（一次性前台执行）
+    async fn run_task(&self, name: &str, args: &[String]) -> Result<TaskOutput>;
+    /// 获取任务定义（从 mise 配置中读取 run 命令）
+    async fn get_task_command(&self, name: &str) -> Result<TaskCommand>;
+    /// 列出所有任务
+    async fn list_tasks(&self) -> Result<Vec<TaskInfo>>;
+}
+
+/// 环境变量端口
+#[async_trait]
+pub trait EnvPort: Send + Sync {
+    /// 获取 mise 解析后的完整环境变量
+    async fn get_env(&self) -> Result<HashMap<String, String>>;
+    /// 获取指定目录下的环境变量
+    async fn get_env_for_dir(&self, dir: &Path) -> Result<HashMap<String, String>>;
+}
+
+/// 配置文件端口
+#[async_trait]
+pub trait ConfigPort: Send + Sync {
+    /// 获取 mise 当前加载的配置文件列表（按优先级排序）
+    async fn list_config_files(&self) -> Result<Vec<PathBuf>>;
+    /// 读取指定配置文件的原始 TOML
+    async fn read_config(&self, path: &Path) -> Result<toml::Value>;
+    /// 写入配置文件（仅写 mise 原生段）
+    async fn write_config(&self, path: &Path, value: &toml::Value) -> Result<()>;
+}
+```
+
+**设计要点**：
+- Port trait 不暴露任何 mise 特有的概念（如 CLI 参数格式、配置段名称）
+- `TaskPort::get_task_command()` 返回解析后的命令而非 `mise run` 的封装，使进程管理器可直接 spawn
+- `MiseVersion` 结构体用于运行时兼容性检测
+
+### 6.4 版本检测与兼容策略
+
+```rust
+/// mise 版本信息
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct MiseVersion {
+    pub year: u16,    // e.g. 2026
+    pub minor: u16,   // e.g. 2
+    pub patch: u16,   // e.g. 17
+}
+
+impl MiseVersion {
+    /// 从 `mise --version` 输出解析
+    pub fn detect() -> Result<Self> { /* ... */ }
+
+    /// 检查是否支持特定特性
+    pub fn supports(&self, feature: MiseFeature) -> bool {
+        match feature {
+            MiseFeature::ConfD       => self >= &Self::new(2024, 12, 0),
+            MiseFeature::TaskDepends => self >= &Self::new(2024, 1, 0),
+            MiseFeature::Lockfiles   => self >= &Self::new(2026, 2, 0),
+            MiseFeature::McpRunTask  => self >= &Self::new(2026, 2, 16),
+            // ...
+        }
+    }
+}
+
+/// mise 特性枚举
+pub enum MiseFeature {
+    ConfD,          // conf.d 目录支持
+    TaskDepends,    // 任务依赖
+    Lockfiles,      // 锁文件（稳定版）
+    McpRunTask,     // MCP run_task 工具
+    // 随 mise 版本增加新特性
+}
+```
+
+**兼容策略矩阵**：
+
+| mise 版本范围 | 策略 | 说明 |
+|--------------|------|------|
+| < 最低支持版本 | **拒绝启动** | 给出明确错误信息和升级指引 |
+| 最低版本 ~ 推荐版本 | **兼容模式** | 关闭依赖新特性的功能，使用备选实现 |
+| 推荐版本 ~ 当前最新 | **完整模式** | 所有功能可用 |
+| > 已知最新版本 | **乐观模式** | 假设向后兼容，记录警告日志 |
+
+svcmgr 应在启动时执行 `mise --version` 检测，并将版本信息注入到 `AdapterFactory`，由工厂方法选择对应的 Adapter 实现。
+
+### 6.5 配置隔离策略
+
+mise 对未知 TOML 段的行为是当前架构中最大的耦合风险点。mise 当前会对未知字段发出 WARN 级别日志（如 `unknown field in xxx.toml: xxx`），未来版本可能拒绝加载。因此需要多层防御：
+
+#### 策略 1：独立配置文件（推荐）
+
+将 svcmgr 配置与 mise 配置物理分离：
+
+```
+.config/
+├── mise/
+│   ├── config.toml          # 纯 mise 配置（tools, env, tasks）
+│   └── conf.d/
+│       ├── 00-base.toml     # 纯 mise 配置
+│       └── ...              # 纯 mise 配置
+└── svcmgr/
+    ├── config.toml          # svcmgr 核心配置（原 x-services, x-features 等）
+    └── conf.d/
+        ├── services.toml    # 服务定义
+        ├── cron.toml        # 定时任务
+        └── local.toml       # 本地覆盖
+```
+
+**优点**：
+- 完全消除 mise 未知段警告/报错风险
+- svcmgr 配置格式独立演进，不受 mise 约束
+- 清晰的职责分离
+
+**缺点**：
+- 用户需维护两套配置文件
+- 任务名在两处配置中需保持一致（`mise/config.toml` 定义任务，`svcmgr/services.toml` 引用任务）
+
+#### 策略 2：共享配置文件 + x- 前缀（备选）
+
+保留 `x-` 前缀方案，但增加防御措施：
+
+```toml
+# mise.toml — mise 和 svcmgr 共享
+[tools]
+node = "22"
+
+[tasks.api-start]
+run = "node server.js"
+
+# svcmgr 扩展段（mise 忽略）
+[x-services.api]
+task = "api-start"
+restart = "always"
+```
+
+**防御措施**：
+- svcmgr 解析时先用 `toml` crate 解析整个文件，提取 `x-` 段后**再将非 x- 段**传递给 mise
+- 或在调用 mise 前，生成一份**去掉 x- 段的临时文件**供 mise 读取
+- 监控 mise stderr 输出中的 `unknown field` 警告，据此自动切换到策略 1
+
+#### 策略 3：混合模式（推荐默认策略）
+
+```
+.config/
+├── mise/
+│   ├── config.toml          # 纯 mise 配置
+│   └── conf.d/*.toml        # 纯 mise 配置
+└── svcmgr/
+    ├── config.toml          # svcmgr 配置（引用 mise 任务名）
+    └── conf.d/*.toml
+```
+
+svcmgr 启动时：
+1. 读取 `.config/svcmgr/config.toml` 获取自身配置
+2. 调用 `mise cfg` 获取 mise 加载的配置文件列表
+3. 通过 Port 接口获取 mise 解析的环境变量和任务定义
+4. 将两者合并后驱动调度引擎
+
+**配置文件之间的引用关系**：
+
+```
+svcmgr/config.toml                     mise/config.toml
+┌────────────────────┐                 ┌────────────────────┐
+│ [services.api]     │ ──引用任务名──→  │ [tasks.api-start]  │
+│ task = "api-start" │                 │ run = "node ..."   │
+│ restart = "always" │                 │ env = { ... }      │
+└────────────────────┘                 └────────────────────┘
+```
+
+> **建议**：默认使用策略 3（混合模式），同时兼容策略 2（x- 前缀）以降低用户迁移成本。通过功能开关 `SVCMGR_CONFIG_MODE=separate|shared` 切换。
+
+### 6.6 CLI 交互抽象
+
+mise CLI 的命令格式和参数可能随版本变化，需要抽象封装：
+
+```rust
+/// mise CLI 命令构造器
+pub struct MiseCommand {
+    version: MiseVersion,
+}
+
+impl MiseCommand {
+    /// 构造安装命令
+    pub fn install(&self, tool: &str, version: &str) -> Command {
+        let mut cmd = Command::new("mise");
+        cmd.arg("install").arg(format!("{}@{}", tool, version));
+        cmd
+    }
+
+    /// 构造环境变量导出命令
+    pub fn env_json(&self) -> Command {
+        let mut cmd = Command::new("mise");
+        cmd.arg("env").arg("--json");
+        cmd
+    }
+
+    /// 构造任务运行命令
+    pub fn run_task(&self, name: &str, args: &[String]) -> Command {
+        let mut cmd = Command::new("mise");
+        cmd.arg("run").arg(name).arg("--");
+        for arg in args {
+            cmd.arg(arg);
+        }
+        cmd
+    }
+
+    /// 获取配置文件列表
+    pub fn config_list(&self) -> Command {
+        let mut cmd = Command::new("mise");
+        cmd.arg("cfg");
+        cmd
+    }
+
+    /// 获取任务定义（用于直接 spawn 而非通过 mise run）
+    pub fn tasks_info(&self, name: &str) -> Command {
+        let mut cmd = Command::new("mise");
+        cmd.arg("tasks").arg("info").arg(name);
+        cmd
+    }
+}
+```
+
+**关键设计**：
+- 所有 mise CLI 调用集中在 `MiseCommand`，当 mise 命令格式变化时只需修改此处
+- 通过 `MiseVersion` 可在构造命令时选择不同参数格式
+- 命令输出解析同样版本化（如 JSON 输出格式变化）
+
+### 6.7 配置格式适配
+
+mise 配置格式可能发生的变化类型及应对：
+
+| 变化类型 | 示例 | 应对策略 |
+|----------|------|----------|
+| **段名重命名** | `[plugins]` → `[tools]`（历史上已发生） | Adapter 中映射新旧段名 |
+| **字段合并/拆分** | `task_*` → `task.*` 嵌套（v2026.2.17） | 版本化解析逻辑 |
+| **新增必填字段** | 假设未来 `[tasks]` 需要 `shell` 字段 | 检测并自动填充默认值 |
+| **废弃字段** | 旧字段标记 deprecated | 日志警告 + 自动迁移 |
+| **配置文件路径变化** | `.mise.toml` → `mise.toml` | 检测两种路径，按 mise 版本选择 |
+| **新增 x- 冲突** | 假设 mise 官方占用 `x-` 前缀 | 切换到独立配置文件策略 |
+
+配置解析流程：
+
+```
+mise.toml / svcmgr.toml
+       │
+       ▼
+┌─────────────────┐
+│  TOML Raw Parse │  ← toml crate 解析为 toml::Value
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Version Router │  ← 根据 MiseVersion 选择解析器
+└────────┬────────┘
+         │
+    ┌────┴────┐
+    ▼         ▼
+┌────────┐ ┌────────┐
+│ V2026  │ │ V2025  │  ← 版本化解析器
+│ Parser │ │ Parser │
+└────┬───┘ └────┬───┘
+     │          │
+     ▼          ▼
+┌─────────────────┐
+│  Unified Config │  ← svcmgr 内部统一配置模型
+│  Model          │
+└─────────────────┘
+```
+
+### 6.8 优雅降级机制
+
+当 mise 行为变化导致某些操作失败时，svcmgr 应能降级而非崩溃：
+
+| 场景 | 降级策略 |
+|------|----------|
+| `mise env --json` 输出格式变化 | 回退到 `mise env` 文本输出解析 |
+| `mise cfg` 不可用 | 手动扫描已知配置文件路径 |
+| `mise tasks info` 失败 | 直接从 TOML 文件解析 `[tasks]` 段 |
+| `mise install` 参数变化 | 尝试 `mise use` 作为备选 |
+| `x-` 段导致 mise 报错 | 自动切换到独立配置文件模式 |
+| mise 二进制不存在 | 提示用户安装，仅启动 svcmgr 核心功能（不含依赖管理） |
+
+降级实现模式：
+
+```rust
+async fn get_env_with_fallback(&self) -> Result<HashMap<String, String>> {
+    // 优先：结构化 JSON 输出
+    match self.get_env_json().await {
+        Ok(env) => return Ok(env),
+        Err(e) => {
+            tracing::warn!("mise env --json failed, falling back: {e}");
+        }
+    }
+    // 降级：文本输出解析
+    match self.get_env_text().await {
+        Ok(env) => return Ok(env),
+        Err(e) => {
+            tracing::warn!("mise env text parse failed, falling back: {e}");
+        }
+    }
+    // 最终降级：直接解析配置文件中的 [env] 段
+    self.parse_env_from_config().await
+}
+```
+
+### 6.9 测试策略
+
+为确保 mise 版本兼容性，建议多层测试：
+
+#### 单元测试：MockAdapter
+
+```rust
+/// 测试用 Mock 适配器，不依赖真实 mise 安装
+pub struct MockMiseAdapter {
+    tools: HashMap<String, String>,
+    env: HashMap<String, String>,
+    tasks: HashMap<String, TaskCommand>,
+}
+
+impl DependencyPort for MockMiseAdapter { /* ... */ }
+impl TaskPort for MockMiseAdapter { /* ... */ }
+impl EnvPort for MockMiseAdapter { /* ... */ }
+```
+
+核心业务逻辑的单元测试全部使用 `MockMiseAdapter`，确保测试速度和稳定性。
+
+#### 集成测试：多版本矩阵
+
+```yaml
+# CI 矩阵测试
+strategy:
+  matrix:
+    mise-version:
+      - "latest"         # 最新版
+      - "2026.2.0"       # 当前推荐版本
+      - "2025.12.0"      # 最低支持版本
+```
+
+#### 契约测试：版本兼容性检查
+
+```rust
+#[test]
+fn test_mise_cli_contract() {
+    // 验证当前 mise 版本的 CLI 输出格式是否符合预期
+    let output = Command::new("mise").arg("env").arg("--json").output().unwrap();
+    let env: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert!(env.is_object(), "mise env --json should return JSON object");
+}
+
+#[test]
+fn test_mise_config_accepts_unknown_sections() {
+    // 验证当前 mise 版本是否接受 x- 前缀段（不报错退出）
+    let config = "[tools]\nnode = \"22\"\n[x-services.test]\ntask = \"test\"\n";
+    // 写入临时文件，运行 mise cfg，检查 exit code
+}
+```
+
+### 6.10 升级与迁移流程
+
+当 mise 发布新版本时，svcmgr 的响应流程：
+
+```
+mise 新版本发布
+      │
+      ▼
+┌──────────────────┐
+│ CI 矩阵测试触发   │ ← GitHub Actions cron / mise release webhook
+└────────┬─────────┘
+         │
+    ┌────┴────┐
+    │ 测试通过？│
+    └────┬────┘
+     是  │  否
+     │   │
+     │   ▼
+     │  ┌─────────────────────┐
+     │  │ 创建 Issue 标记兼容性 │
+     │  │ 问题并开始适配        │
+     │  └──────────┬──────────┘
+     │             │
+     │             ▼
+     │  ┌─────────────────────┐
+     │  │ 新增/修改 Adapter    │
+     │  │ 更新 MiseFeature 枚举 │
+     │  │ 更新版本兼容矩阵      │
+     │  └──────────┬──────────┘
+     │             │
+     ▼             ▼
+┌──────────────────────┐
+│ 更新 svcmgr 最低/推荐│
+│ mise 版本号          │
+│ 发布 svcmgr 新版本   │
+└──────────────────────┘
+```
+
+**版本兼容性声明**（在 svcmgr 配置/README 中维护）：
+
+```toml
+# svcmgr 内置版本兼容表
+[mise-compat]
+minimum = "2025.12.0"   # 最低支持版本
+recommended = "2026.2.0" # 推荐版本
+tested_up_to = "2026.2.17" # 已测试的最高版本
+```
+
+### 6.11 目录结构建议
+
+```
+src/
+├── ports/                    # Port 接口定义（纯 trait）
+│   ├── mod.rs
+│   ├── dependency.rs         # DependencyPort trait
+│   ├── task.rs               # TaskPort trait
+│   ├── env.rs                # EnvPort trait
+│   └── config.rs             # ConfigPort trait
+├── adapters/                 # Adapter 实现
+│   ├── mod.rs
+│   ├── mise/
+│   │   ├── mod.rs            # AdapterFactory + MiseVersion
+│   │   ├── command.rs        # MiseCommand 构造器
+│   │   ├── v2026.rs          # 2026.x 版本适配器
+│   │   ├── v2025.rs          # 2025.x 版本适配器（最低支持）
+│   │   └── parser.rs         # 版本化配置解析
+│   └── mock.rs               # 测试用 Mock 适配器
+├── core/                     # 核心业务逻辑
+│   ├── scheduler.rs          # 调度引擎（通过 Port 调用 mise）
+│   ├── process.rs            # 进程管理
+│   ├── config_manager.rs     # 配置管理 + Git 版本化
+│   └── ...
+└── ...
+```
+
+### 6.12 关键问题补充
+
+#### P8: mise CLI 输出格式稳定性
+
+**问题**：svcmgr 通过解析 mise CLI 的 stdout/stderr 获取信息，但 mise 未承诺 CLI 输出格式的稳定性。例如 `mise env --json` 的 JSON 结构、`mise tasks info` 的文本格式都可能变化。
+
+**建议**：
+- 优先使用结构化输出（`--json` 标志），其稳定性通常高于文本输出
+- 对解析结果做宽松匹配（容忍新增字段，不因未知字段报错）
+- 考虑通过 mise 的 MCP（Model Context Protocol）接口交互，该接口（v2026.2.16+ 新增 `run_task`）可能提供更稳定的程序化调用方式
+- 为每种 CLI 输出维护契约测试
+
+#### P9: mise 自身升级的原子性
+
+**问题**：如果用 mise 管理自身的依赖，mise 在升级自身时可能导致 svcmgr 依赖的 mise 版本不可预期地变化。
+
+**建议**：
+- svcmgr 应在 `[mise-compat]` 中 pin mise 版本范围
+- 启动时检测 mise 版本是否在兼容范围内，不在范围则发出警告
+- mise 升级应通过 svcmgr 的配置管理流程（Git staging → apply → commit），而非自动升级
+
+---
+
+## 7. 配置文件设计
+
+### 7.1 配置文件层级
 
 ```
 ~/.config/mise.toml                    # mise 内置配置（svcmgr 自身依赖）
@@ -271,11 +792,11 @@ pitchfork 解决了 mise 缺乏的进程管理能力，但：
   └── 99-local.toml                    # 本地覆盖
 ```
 
-### 6.2 x- 扩展段格式
+### 7.2 x- 扩展段格式
 
 所有 svcmgr 特有的配置都使用 `x-` 前缀的 TOML 段，mise 会忽略这些段（不报错），svcmgr 自行解析。
 
-#### 6.2.1 服务定义 `[x-services.<name>]`
+#### 7.2.1 服务定义 `[x-services.<name>]`
 
 ```toml
 [x-services.web-api]
@@ -306,7 +827,7 @@ workdir = "/app/docs"
 timeout = "300"              # 超时 300 秒
 ```
 
-#### 6.2.2 配置目录管理 `[x-configurations.<name>]`
+#### 7.2.2 配置目录管理 `[x-configurations.<name>]`
 
 ```toml
 [x-configurations.nginx]
@@ -317,7 +838,7 @@ template = "nginx/default"   # 初始化模板名称（可选）
 path = ".config/app"          # 应用配置目录
 ```
 
-#### 6.2.3 功能开关 `[x-features]`
+#### 7.2.3 功能开关 `[x-features]`
 
 ```toml
 [x-features]
@@ -336,7 +857,7 @@ SVCMGR_FEATURE_PROXY = "1"
 SVCMGR_FEATURE_TUNNEL = "0"
 ```
 
-### 6.3 配置文件解析流程
+### 7.3 配置文件解析流程
 
 ```
                       ┌──────────────────┐
@@ -364,13 +885,13 @@ SVCMGR_FEATURE_TUNNEL = "0"
 
 ---
 
-## 7. 多任务调度引擎设计
+## 8. 多任务调度引擎设计
 
-### 7.1 概述
+### 8.1 概述
 
 调度引擎是新架构的核心组件，负责管理所有任务的生命周期。它是一个纯内存运行时，配置来自解析后的 TOML 配置文件。
 
-### 7.2 触发器类型
+### 8.2 触发器类型
 
 ```rust
 /// 任务触发器类型
@@ -405,7 +926,7 @@ enum EventType {
 }
 ```
 
-### 7.3 任务定义
+### 8.3 任务定义
 
 ```rust
 /// 调度任务
@@ -435,7 +956,7 @@ enum Execution {
 }
 ```
 
-### 7.4 调度引擎核心循环
+### 8.4 调度引擎核心循环
 
 ```rust
 /// 调度引擎主循环（简化伪代码）
@@ -478,7 +999,7 @@ async fn engine_loop(engine: &SchedulerEngine) {
 }
 ```
 
-### 7.5 与 mise 的集成
+### 8.5 与 mise 的集成
 
 ```
 用户定义 mise.toml:
@@ -502,7 +1023,7 @@ http_ports = { web = 3000 }
 5. 进程管理器接管子进程（setsid、日志捕获、资源限制）
 6. 进程退出时触发 `TaskExit` 事件 → 根据 `restart = "always"` 自动重启
 
-### 7.6 与当前实现的差异
+### 8.6 与当前实现的差异
 
 | 维度 | 当前（supervisor.rs） | 新设计（调度引擎） |
 |------|----------------------|-------------------|
@@ -515,15 +1036,15 @@ http_ports = { web = 3000 }
 
 ---
 
-## 8. 子进程管理与资源限制
+## 9. 子进程管理与资源限制
 
-### 8.1 进程组管理（当前已实现）
+### 9.1 进程组管理（当前已实现）
 
 当前 `supervisor.rs` 已使用 `setsid()` 创建进程组，`kill(-pgid, sig)` 发送信号到整个进程树。**可完全复用**。
 
-### 8.2 Docker 非特权容器下的资源限制
+### 9.2 Docker 非特权容器下的资源限制
 
-#### 8.2.1 可行方案：setrlimit (POSIX resource limits)
+#### 9.2.1 可行方案：setrlimit (POSIX resource limits)
 
 在非特权容器中，**`setrlimit` / `prlimit` 是可行的**。通过 Rust 的 `rlimit` crate（~1260 万下载量）或 `libc` crate 直接调用。
 
@@ -548,7 +1069,7 @@ http_ports = { web = 3000 }
 | OOM score | OOM killer 优先级 | 需要 CAP_SYS_ADMIN |
 | nice/priority | 进程调度优先级 | 降低优先级可以，提高需要 CAP_SYS_NICE |
 
-#### 8.2.2 实现方式
+#### 9.2.2 实现方式
 
 在 `fork` 之后、`exec` 之前通过 `pre_exec` 设置资源限制：
 
@@ -595,7 +1116,7 @@ unsafe {
 }
 ```
 
-#### 8.2.3 配置格式
+#### 9.2.3 配置格式
 
 ```toml
 [x-services.heavy-worker]
@@ -607,7 +1128,7 @@ nproc_limit = 50           # RLIMIT_NPROC: 最多 50 个子进程
 fsize_limit = "100m"       # RLIMIT_FSIZE: 单文件最大 100MB
 ```
 
-#### 8.2.4 注意事项与限制
+#### 9.2.4 注意事项与限制
 
 1. **`RLIMIT_AS` 不等于物理内存限制**：`RLIMIT_AS` 限制的是虚拟地址空间（包括共享库映射），实际物理内存使用可能远低于此值。对于使用大量 mmap 的程序（如 JVM），可能需要设置较大的值
 2. **`RLIMIT_CPU` 是累计 CPU 时间**：不是 CPU 百分比。进程超出限制后收到 SIGXCPU（可捕获），之后收到 SIGKILL（不可捕获）
@@ -616,7 +1137,7 @@ fsize_limit = "100m"       # RLIMIT_FSIZE: 单文件最大 100MB
 
 > **结论**：基于 `setrlimit` 的资源限制在 Docker 非特权容器中**可行但有局限性**。适合做基本的安全防护（防止文件描述符泄漏、限制 fork bomb），但无法实现精确的 CPU/内存配额控制（需要 cgroups v2 委托，见下文）。
 
-#### 8.2.5 进阶方案：cgroups v2 委托（可选）
+#### 9.2.5 进阶方案：cgroups v2 委托（可选）
 
 在 Docker 容器中，如果 host 使用 cgroups v2 且容器使用 `--cgroupns=private`（Docker 默认行为），容器内的进程**可以创建子 cgroup** 来实现更精细的资源控制：
 
@@ -630,9 +1151,9 @@ ls -la /sys/fs/cgroup/
 
 ---
 
-## 9. Git 配置版本管理
+## 10. Git 配置版本管理
 
-### 9.1 核心流程
+### 10.1 核心流程
 
 用户提出的配置生命周期（5 阶段）完全映射到 Git 操作：
 
@@ -659,7 +1180,7 @@ ls -la /sys/fs/cgroup/
       将暂存区文件移出并回滚到 HEAD 版本
 ```
 
-### 9.2 Git 仓库结构
+### 10.2 Git 仓库结构
 
 ```
 ~/.config/svcmgr/                      # Git 仓库根目录
@@ -675,7 +1196,7 @@ ls -la /sys/fs/cgroup/
     └── cloudflare/
 ```
 
-### 9.3 配置管理 API
+### 10.3 配置管理 API
 
 ```rust
 trait ConfigManager {
@@ -711,7 +1232,7 @@ trait ConfigManager {
 }
 ```
 
-### 9.4 事件集成
+### 10.4 事件集成
 
 配置变更与事件系统深度集成：
 
@@ -732,9 +1253,9 @@ trait ConfigManager {
 
 ---
 
-## 10. Web 服务与代理设计
+## 11. Web 服务与代理设计
 
-### 10.1 内置 Web 服务
+### 11.1 内置 Web 服务
 
 svcmgr 内置 HTTP 服务器（建议使用 `axum` 框架），提供：
 
@@ -746,7 +1267,7 @@ svcmgr 内置 HTTP 服务器（建议使用 `axum` 框架），提供：
 /services/{task}/{port_name}/* 反向代理到服务端口
 ```
 
-### 10.2 反向代理机制
+### 11.2 反向代理机制
 
 #### 当前方案：依赖 nginx
 
@@ -774,7 +1295,7 @@ svcmgr 内置 HTTP 服务器（建议使用 `axum` 框架），提供：
 
 **建议采用方案 C**，初期实现内置代理满足基本需求，后续按需启用 nginx。
 
-### 10.3 代理路由配置
+### 11.3 代理路由配置
 
 ```toml
 [x-services.api]
@@ -792,7 +1313,7 @@ http_ports = { site = 3000 }
 - `/services/api/web/*` → `http://localhost:8080/*`（去掉前缀 `/services/api/web`）
 - `/services/docs/site/*` → `http://localhost:3000/*`
 
-### 10.4 静态文件转发
+### 11.4 静态文件转发
 
 ```toml
 [x-static.public]
@@ -804,9 +1325,9 @@ index = ["index.html"]
 
 ---
 
-## 11. 功能开关机制
+## 12. 功能开关机制
 
-### 11.1 设计
+### 12.1 设计
 
 功能开关通过两种方式控制：
 
@@ -829,7 +1350,7 @@ SVCMGR_FEATURE_PROXY=0
 SVCMGR_FEATURE_TUNNEL=1    # 覆盖配置文件中的 false
 ```
 
-### 11.2 功能开关列表
+### 12.2 功能开关列表
 
 | 开关名 | 默认值 | 说明 |
 |--------|-------|------|
@@ -841,7 +1362,7 @@ SVCMGR_FEATURE_TUNNEL=1    # 覆盖配置文件中的 false
 | `git_versioning` | `true` | 启用配置 Git 版本化 |
 | `resource_limits` | `true` | 启用子进程资源限制 |
 
-### 11.3 实现
+### 12.3 实现
 
 ```rust
 struct FeatureFlags {
@@ -864,9 +1385,9 @@ impl FeatureFlags {
 
 ---
 
-## 12. API 设计
+## 13. API 设计
 
-### 12.1 API 路由
+### 13.1 API 路由
 
 ```
 /web/*                                  静态资源
@@ -895,7 +1416,7 @@ impl FeatureFlags {
 /services/{task}/{port_name}/*          代理   反向代理到服务端口
 ```
 
-### 12.2 与现有 CLI 的映射
+### 13.2 与现有 CLI 的映射
 
 | 当前 CLI 命令 | 新 API | 变更说明 |
 |--------------|--------|---------|
@@ -912,9 +1433,9 @@ impl FeatureFlags {
 
 ---
 
-## 13. 改造影响分析
+## 14. 改造影响分析
 
-### 13.1 保留的模块
+### 14.1 保留的模块
 
 | 模块 | 文件 | 原因 |
 |------|------|------|
@@ -923,7 +1444,7 @@ impl FeatureFlags {
 | 隧道原子 | `atoms/tunnel.rs` | cloudflared 封装，按需保留 |
 | 错误处理 | `error.rs` | 通用基础设施 |
 
-### 13.2 需要重写的模块
+### 14.2 需要重写的模块
 
 | 模块 | 当前文件 | 变更 |
 |------|---------|------|
@@ -935,7 +1456,7 @@ impl FeatureFlags {
 | 配置 | `config.rs` | 重写为基于 mise.toml 的配置管理 |
 | 主入口 | `main.rs` | 重写为调度引擎 + Web 服务启动 |
 
-### 13.3 新增模块
+### 14.3 新增模块
 
 | 模块 | 职责 |
 |------|------|
@@ -949,7 +1470,7 @@ impl FeatureFlags {
 | `web/proxy.rs` | 内置反向代理 |
 | `web/static.rs` | 静态文件服务 |
 
-### 13.4 依赖变更
+### 14.4 依赖变更
 
 | 当前依赖 | 状态 | 新增依赖 | 用途 |
 |----------|------|---------|------|
@@ -967,9 +1488,9 @@ impl FeatureFlags {
 
 ---
 
-## 14. 问题与风险
+## 15. 问题与风险
 
-### 14.1 关键问题
+### 15.1 关键问题
 
 #### P1: mise 对未知 TOML 段的行为
 
@@ -1034,53 +1555,71 @@ impl FeatureFlags {
 - 端口通过 `http_ports` 配置，代理通过统一的反向代理机制处理
 - 创建 TTY 等于创建一个 ttyd 服务 + 配置代理路由
 
-### 14.2 风险矩阵
+#### P8: mise CLI 输出格式稳定性
+
+> 详见 [§6.12 关键问题补充](#612-关键问题补充)。
+
+#### P9: mise 自身升级的原子性
+
+> 详见 [§6.12 关键问题补充](#612-关键问题补充)。
+
+### 15.2 风险矩阵
 
 | 风险 | 概率 | 影响 | 缓解措施 |
 |------|------|------|---------|
-| mise 未来版本不兼容 x- 段 | 中 | 高 | 监控 mise changelog，备选独立配置文件 |
+| mise 未来版本不兼容 x- 段 | 中 | 高 | 配置隔离策略（§6.5）+ 自动切换独立配置模式 |
 | 进程管理稳定性 | 低 | 高 | 复用已验证的 setsid/kill 逻辑 |
 | 资源限制在某些容器不可用 | 低 | 中 | 设为可选功能，优雅降级 |
 | 事件风暴 | 中 | 中 | 去抖动 + 速率限制 + 指数退避 |
+| mise CLI 输出格式变化 | 中 | 中 | 适配器层 + 降级机制 + 契约测试（§6） |
 | 配置合并不一致 | 低 | 中 | 使用 `mise cfg` 获取权威文件列表 |
+| mise 版本升级导致不兼容 | 中 | 高 | 版本检测 + CI 矩阵测试 + 兼容性声明（§6.4/§6.10） |
 | 改造工作量大 | 高 | 中 | 分阶段实施，保持向后兼容 |
 
 ---
 
-## 15. 推荐实施路径
+## 16. 推荐实施路径
+
+### Phase 0: mise 解耦基础设施（预计 1 周）
+
+0. **Port 接口定义**：定义 DependencyPort / TaskPort / EnvPort / ConfigPort trait
+1. **Adapter 实现**：实现 MiseV2026Adapter + MockMiseAdapter
+2. **版本检测**：实现 MiseVersion 检测与 AdapterFactory
+3. **契约测试**：编写 mise CLI 契约测试和 CI 矩阵配置
 
 ### Phase 1: 基础设施（预计 1-2 周）
 
-1. **配置解析器**：实现 mise.toml + x- 扩展段解析
-2. **Git 配置管理**：实现 5 阶段配置生命周期
-3. **功能开关**：实现 x-features + 环境变量驱动
+4. **配置解析器**：实现 svcmgr 独立配置 + mise 配置关联解析
+5. **Git 配置管理**：实现 5 阶段配置生命周期
+6. **功能开关**：实现 features + 环境变量驱动
 
 ### Phase 2: 调度引擎（预计 2-3 周）
 
-4. **调度引擎核心**：实现 Trigger 系统（OneShot、Delayed、Cron、Event）
-5. **进程管理器**：从 supervisor.rs 提取并增强（加入资源限制）
-6. **事件总线**：实现 EventBus 和内置事件
+7. **调度引擎核心**：实现 Trigger 系统（OneShot、Delayed、Cron、Event）
+8. **进程管理器**：从 supervisor.rs 提取并增强（加入资源限制）
+9. **事件总线**：实现 EventBus 和内置事件
 
 ### Phase 3: Web 服务（预计 1-2 周）
 
-7. **HTTP 服务器**：axum 框架搭建
-8. **REST API**：实现 /api/v1/* 端点
-9. **内置反向代理**：实现 /services/{task}/{port}/* 转发
-10. **静态文件服务**：实现 /web/* 服务
+10. **HTTP 服务器**：axum 框架搭建
+11. **REST API**：实现 /api/v1/* 端点
+12. **内置反向代理**：实现 /services/{task}/{port}/* 转发
+13. **静态文件服务**：实现 /web/* 服务
 
 ### Phase 4: 集成与迁移（预计 1-2 周）
 
-11. **CLI 改造**：CLI 命令调用 API
-12. **mise 集成**：`mise run` 任务执行 + 环境变量注入
-13. **向后兼容**：迁移脚本，将旧格式转换为新配置格式
-14. **文档更新**：openspec 和 wiki 更新
+14. **CLI 改造**：CLI 命令调用 API
+15. **mise 集成**：通过 Port 接口获取任务命令 + 环境变量注入
+16. **向后兼容**：迁移脚本，将旧格式转换为新配置格式
+17. **文档更新**：openspec 和 wiki 更新
 
 ### Phase 5: 可选增强（按需）
 
-15. nginx 管理（x-features.nginx）
-16. Cloudflare 隧道管理（x-features.tunnel）
-17. cgroups v2 委托（高级资源限制）
-18. Web UI 前端
+18. nginx 管理（features.nginx）
+19. Cloudflare 隧道管理（features.tunnel）
+20. cgroups v2 委托（高级资源限制）
+21. Web UI 前端
+22. mise MCP 接口集成（替代 CLI 调用，更稳定的程序化交互）
 
 ---
 
