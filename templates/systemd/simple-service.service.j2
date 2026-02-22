@@ -3,19 +3,19 @@
 # This repository used to generate systemd unit files from templates.
 # After migrating to the built-in supervisor, the "unit" content is a TOML-serialized ServiceDef.
 
-name = "{{ name }}"
-description = "{{ description | default(name ~ " service") }}"
-command = "{{ command | default(exec_start) }}"
-args = [{% if args %}{% for a in args %}"{{ a }}"{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}]
+name = "{{ name | toml_escape }}"
+description = "{{ (description | default(name ~ ' service')) | toml_escape }}"
+command = "{{ (command | default(exec_start)) | toml_escape }}"
+args = [{% if args %}{% for a in args %}"{{ a | toml_escape }}"{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}]
 {% if working_directory -%}
-working_directory = "{{ working_directory }}"
+working_directory = "{{ working_directory | toml_escape }}"
 {% endif -%}
 {% if environment -%}
-env = { {% for key, value in environment.items() -%}"{{ key }}" = "{{ value }}"{% if not loop.last %}, {% endif %}{% endfor -%} }
+env = { {% for key, value in environment.items() -%}"{{ key | toml_escape }}" = "{{ value | toml_escape }}"{% if not loop.last %}, {% endif %}{% endfor -%} }
 {% else -%}
 env = {}
 {% endif -%}
-restart_policy = "{{ restart_policy | default("OnFailure") }}"
+restart_policy = "{{ (restart_policy | default('No')) | toml_escape }}"
 restart_sec = {{ restart_sec | default(1) }}
 enabled = true
 stop_timeout_sec = {{ stop_timeout_sec | default(10) }}

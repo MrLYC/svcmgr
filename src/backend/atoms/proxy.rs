@@ -421,10 +421,35 @@ impl ProxyAtom for NginxManager {
     async fn start(&self) -> Result<()> {
         self.ensure_dirs().await?;
 
-        if !self.nginx_conf_path().exists() {
+        let config_path = self.nginx_conf_path();
+        if !config_path.exists() {
             return Err(Error::Config(
                 "nginx.conf not found. Please create it first.".to_string(),
             ));
+        }
+
+        // Ensure the built-in supervisor has a unit definition for nginx.
+        // (The CLI expects `svcmgr nginx start` to work without any manual `create_unit` step.)
+        match self.supervisor.get_unit("nginx").await {
+            Ok(_) => {}
+            Err(Error::Io(e)) if e.kind() == std::io::ErrorKind::NotFound => {
+                let unit_content = format!(
+                    r#"name = "nginx"
+description = "Nginx"
+command = "nginx"
+args = ["-c", "{}", "-p", "{}"]
+env = {{}}
+restart_policy = "OnFailure"
+restart_sec = 1
+enabled = true
+stop_timeout_sec = 10
+"#,
+                    config_path.display(),
+                    self.data_dir.display()
+                );
+                self.supervisor.create_unit("nginx", &unit_content).await?;
+            }
+            Err(e) => return Err(e),
         }
 
         self.supervisor.start("nginx").await
@@ -437,7 +462,14 @@ impl ProxyAtom for NginxManager {
     async fn reload(&self) -> Result<()> {
         let config_path = self.nginx_conf_path();
         let output = Command::new("nginx")
-            .args(["-s", "reload", "-c", &config_path.to_string_lossy()])
+            .args([
+                "-s",
+                "reload",
+                "-c",
+                &config_path.to_string_lossy(),
+                "-p",
+                &self.data_dir.to_string_lossy(),
+            ])
             .output()?;
 
         if !output.status.success() {
@@ -472,7 +504,13 @@ impl ProxyAtom for NginxManager {
     async fn test_config(&self) -> Result<bool> {
         let config_path = self.nginx_conf_path();
         let output = Command::new("nginx")
-            .args(["-t", "-c", &config_path.to_string_lossy()])
+            .args([
+                "-t",
+                "-c",
+                &config_path.to_string_lossy(),
+                "-p",
+                &self.data_dir.to_string_lossy(),
+            ])
             .output()?;
 
         let stderr = String::from_utf8_lossy(&output.stderr);

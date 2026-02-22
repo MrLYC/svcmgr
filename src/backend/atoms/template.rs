@@ -152,6 +152,23 @@ impl TemplateEngine {
     fn create_env(&self) -> Result<Environment<'static>> {
         let mut env = Environment::new();
 
+        // Escape strings for embedding into TOML basic strings.
+        // (Avoids generating invalid TOML when values contain quotes/backslashes/newlines.)
+        env.add_filter("toml_escape", |s: String| -> String {
+            let mut out = String::with_capacity(s.len());
+            for ch in s.chars() {
+                match ch {
+                    '\\' => out.push_str("\\\\"),
+                    '"' => out.push_str("\\\""),
+                    '\n' => out.push_str("\\n"),
+                    '\r' => out.push_str("\\r"),
+                    '\t' => out.push_str("\\t"),
+                    c => out.push(c),
+                }
+            }
+            out
+        });
+
         // 内置模板已经存储在 self.builtin_templates 中，需要创建静态版本
         // 这里使用 Box::leak 将数据转换为 'static 生命周期
         // 注意：这会导致内存泄漏，但对于长期运行的应用是可接受的

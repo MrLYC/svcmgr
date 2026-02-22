@@ -425,7 +425,9 @@ pub trait SupervisorAtom {
 /// Built-in cron scheduler trait (replaces CrontabAtom)
 ///
 /// Manages periodic tasks with cron expressions.  Tasks are persisted
-/// in a TOML file and executed by the supervisor's scheduler loop.
+/// in a TOML file.  This trait provides CRUD operations, expression
+/// validation, and next-run prediction.  Actual task execution is
+/// the responsibility of the caller (e.g. an external scheduler loop).
 pub trait SchedulerAtom {
     /// Add a new cron task, returns the generated task ID
     fn add(&self, task: &CronTask) -> Result<String>;
@@ -486,6 +488,7 @@ pub trait SchedulerAtom {
 ///
 /// Periodic tasks are stored in `cron-tasks.toml` in the service
 /// directory and can be managed via the `SchedulerAtom` trait.
+#[derive(Clone)]
 pub struct SupervisorManager {
     /// Directory for service definition files and cron task store
     service_dir: PathBuf,
@@ -579,7 +582,9 @@ impl SupervisorManager {
         // group so we can signal the entire tree later.
         unsafe {
             cmd.pre_exec(|| {
-                libc::setsid();
+                if libc::setsid() == -1 {
+                    return Err(std::io::Error::last_os_error());
+                }
                 Ok(())
             });
         }
@@ -858,35 +863,76 @@ impl SupervisorManager {
 
     // ------ cron task store helpers ------
 
-    /// Read the task store from disk
+    /// Read the task store from disk.
+    ///
+    /// Note: `SchedulerAtom` methods are synchronous. If called from within a Tokio
+    /// runtime, wrap blocking filesystem access with `tokio::task::block_in_place`.
     fn read_task_store(&self) -> Result<TaskStore> {
         if !self.task_store_path.exists() {
             return Ok(TaskStore::default());
         }
-        let content = std::fs::read_to_string(&self.task_store_path)?;
+
+        let read = || std::fs::read_to_string(&self.task_store_path);
+
+        let use_block_in_place = tokio::runtime::Handle::try_current().ok().is_some_and(|h| {
+            matches!(
+                h.runtime_flavor(),
+                tokio::runtime::RuntimeFlavor::MultiThread
+            )
+        });
+
+        let content = if use_block_in_place {
+            tokio::task::block_in_place(read)?
+        } else {
+            // Fallback for current-thread runtimes (where block_in_place would panic).
+            read()?
+        };
+
         let store: TaskStore = toml::from_str(&content)
             .map_err(|e| Error::Config(format!("Invalid task store: {}", e)))?;
         Ok(store)
     }
 
-    /// Write the task store to disk
+    /// Write the task store to disk.
+    ///
+    /// Note: `SchedulerAtom` methods are synchronous. If called from within a Tokio
+    /// runtime, wrap blocking filesystem access with `tokio::task::block_in_place`.
     fn write_task_store(&self, store: &TaskStore) -> Result<()> {
-        if let Some(parent) = self.task_store_path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
         let content = toml::to_string_pretty(store)
             .map_err(|e| Error::Config(format!("Failed to serialize task store: {}", e)))?;
-        std::fs::write(&self.task_store_path, content)?;
+
+        let write = || -> std::io::Result<()> {
+            if let Some(parent) = self.task_store_path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            std::fs::write(&self.task_store_path, &content)?;
+            Ok(())
+        };
+
+        let use_block_in_place = tokio::runtime::Handle::try_current().ok().is_some_and(|h| {
+            matches!(
+                h.runtime_flavor(),
+                tokio::runtime::RuntimeFlavor::MultiThread
+            )
+        });
+
+        if use_block_in_place {
+            tokio::task::block_in_place(write)?;
+        } else {
+            // Fallback for current-thread runtimes (where block_in_place would panic).
+            write()?;
+        }
+
         Ok(())
     }
 
-    /// Generate a timestamp-based task ID
+    /// Generate a timestamp-based task ID (nanosecond precision to avoid collisions)
     fn generate_task_id(&self) -> String {
         use std::time::{SystemTime, UNIX_EPOCH};
         let ts = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
-            .as_secs();
+            .as_nanos();
         format!("{}", ts)
     }
 
@@ -931,6 +977,16 @@ impl SupervisorManager {
 
 impl SupervisorAtom for SupervisorManager {
     async fn create_unit(&self, name: &str, content: &str) -> Result<()> {
+        // Validate that content is a valid TOML ServiceDef
+        let def: ServiceDef = toml::from_str(content)
+            .map_err(|e| Error::Config(format!("Invalid TOML ServiceDef: {}", e)))?;
+        // Enforce that the name inside the definition matches the unit name
+        if def.name != name {
+            return Err(Error::Config(format!(
+                "ServiceDef name '{}' does not match unit name '{}'",
+                def.name, name
+            )));
+        }
         self.ensure_service_dir().await?;
         let path = self.service_path(name);
         tokio::fs::write(&path, content).await?;
@@ -938,6 +994,15 @@ impl SupervisorAtom for SupervisorManager {
     }
 
     async fn update_unit(&self, name: &str, content: &str) -> Result<()> {
+        // Validate that content is a valid TOML ServiceDef
+        let def: ServiceDef = toml::from_str(content)
+            .map_err(|e| Error::Config(format!("Invalid TOML ServiceDef: {}", e)))?;
+        if def.name != name {
+            return Err(Error::Config(format!(
+                "ServiceDef name '{}' does not match unit name '{}'",
+                def.name, name
+            )));
+        }
         let path = self.service_path(name);
         if !path.exists() {
             return Err(Error::NotSupported(format!("Service {} not found", name)));
@@ -975,27 +1040,37 @@ impl SupervisorAtom for SupervisorManager {
         let mut units = Vec::new();
 
         for name in names {
-            let def = match self.read_service_def(&name).await {
-                Ok(d) => d,
-                Err(_) => continue,
-            };
+            match self.read_service_def(&name).await {
+                Ok(def) => {
+                    self.refresh_process_state(&name).await;
 
-            self.refresh_process_state(&name).await;
+                    let procs = self.processes.read().await;
+                    let (active_state, sub_state) = procs
+                        .get(&name)
+                        .map(|s| (s.active_state, s.sub_state.clone()))
+                        .unwrap_or((ActiveState::Inactive, "dead".to_string()));
 
-            let procs = self.processes.read().await;
-            let (active_state, sub_state) = procs
-                .get(&name)
-                .map(|s| (s.active_state, s.sub_state.clone()))
-                .unwrap_or((ActiveState::Inactive, "dead".to_string()));
-
-            units.push(UnitInfo {
-                name: name.clone(),
-                description: def.description.clone(),
-                load_state: LoadState::Loaded,
-                active_state,
-                sub_state,
-                enabled: def.enabled,
-            });
+                    units.push(UnitInfo {
+                        name: name.clone(),
+                        description: def.description.clone(),
+                        load_state: LoadState::Loaded,
+                        active_state,
+                        sub_state,
+                        enabled: def.enabled,
+                    });
+                }
+                Err(_) => {
+                    // Include broken definitions with BadSetting load state
+                    units.push(UnitInfo {
+                        name: name.clone(),
+                        description: String::new(),
+                        load_state: LoadState::BadSetting,
+                        active_state: ActiveState::Inactive,
+                        sub_state: "dead".to_string(),
+                        enabled: false,
+                    });
+                }
+            }
         }
 
         Ok(units)
@@ -1048,18 +1123,34 @@ impl SupervisorAtom for SupervisorManager {
     }
 
     async fn stop(&self, name: &str) -> Result<()> {
-        let mut procs = self.processes.write().await;
-        if let Some(state) = procs.get_mut(name) {
-            state.stopping = true;
-
-            if let (Some(child), Some(pgid)) = (&mut state.child, state.pid) {
-                Self::graceful_stop(child, pgid, state.stop_timeout_sec).await;
+        // Extract the child handle + pgid, then release the lock before the
+        // async graceful_stop so we don't block log capture and queries.
+        let extracted = {
+            let mut procs = self.processes.write().await;
+            if let Some(state) = procs.get_mut(name) {
+                state.stopping = true;
+                let child = state.child.take();
+                let pgid = state.pid.take();
+                let timeout = state.stop_timeout_sec;
+                Some((child, pgid, timeout))
+            } else {
+                None
             }
+        };
 
-            state.child = None;
-            state.pid = None;
-            state.active_state = ActiveState::Inactive;
-            state.sub_state = "stopped".to_string();
+        if let Some((Some(mut child), Some(pgid), timeout)) = extracted {
+            Self::graceful_stop(&mut child, pgid, timeout).await;
+        }
+
+        // Re-acquire to update final state
+        {
+            let mut procs = self.processes.write().await;
+            if let Some(state) = procs.get_mut(name) {
+                state.child = None;
+                state.pid = None;
+                state.active_state = ActiveState::Inactive;
+                state.sub_state = "stopped".to_string();
+            }
         }
         Ok(())
     }
@@ -1219,7 +1310,9 @@ impl SupervisorAtom for SupervisorManager {
 
         unsafe {
             cmd.pre_exec(|| {
-                libc::setsid();
+                if libc::setsid() == -1 {
+                    return Err(std::io::Error::last_os_error());
+                }
                 Ok(())
             });
         }

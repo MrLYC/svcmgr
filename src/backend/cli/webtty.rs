@@ -100,9 +100,7 @@ async fn persist_tty(
 
 fn create_default_manager() -> Result<WebTtyManager<SupervisorManager, NginxManager>> {
     let supervisor = SupervisorManager::default_config()?;
-    let supervisor_for_proxy = SupervisorManager::default_config()?;
-
-    let proxy = NginxManager::default_config(supervisor_for_proxy)?;
+    let proxy = NginxManager::default_config(supervisor.clone())?;
 
     Ok(WebTtyManager::new(supervisor, proxy))
 }

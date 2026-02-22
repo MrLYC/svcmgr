@@ -445,15 +445,19 @@ impl TunnelManager {
         let service_name = self.service_name(tunnel);
         let config_file = self.config_path(tunnel);
 
+        // ServiceDef TOML content (used by built-in supervisor)
         let unit_content = format!(
-            r#"[Unit]
-Description=Cloudflare Tunnel - {}
-
-[Service]
-ExecStart=/usr/bin/cloudflared tunnel --config {} run {}
-Restart=on-failure
-RestartSec=5
+            r#"name = "{}"
+description = "Cloudflare Tunnel - {}"
+command = "/usr/bin/cloudflared"
+args = ["tunnel", "--config", "{}", "run", "{}"]
+env = {{}}
+restart_policy = "OnFailure"
+restart_sec = 5
+enabled = true
+stop_timeout_sec = 10
 "#,
+            service_name,
             tunnel,
             config_file.display(),
             tunnel

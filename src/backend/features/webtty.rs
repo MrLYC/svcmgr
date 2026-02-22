@@ -3,7 +3,7 @@
 //! 提供 Web 终端（TTY）实例的生命周期管理功能：
 //! - 创建临时/持久化 TTY 实例
 //! - 端口自动分配（9000-9100）
-//! - Systemd 服务管理集成
+//! - Supervisor 服务管理集成
 //! - Nginx 反向代理集成
 //! - TTY 实例状态查询
 
@@ -43,7 +43,7 @@ pub struct TtyInstance {
     pub port: u16,
     /// 访问 URL
     pub url: String,
-    /// Systemd 单元名称
+    /// Supervisor 单元名称
     pub unit_name: String,
     /// 是否持久化
     pub persistent: bool,
@@ -64,16 +64,16 @@ pub enum TtyStatus {
 // ========================================
 
 pub struct WebTtyManager<S: SupervisorAtom, P: ProxyAtom> {
-    systemd: S,
+    supervisor: S,
     proxy: P,
     port_range: (u16, u16),
 }
 
 impl<S: SupervisorAtom, P: ProxyAtom> WebTtyManager<S, P> {
     /// 创建新的 WebTtyManager
-    pub fn new(systemd: S, proxy: P) -> Self {
+    pub fn new(supervisor: S, proxy: P) -> Self {
         Self {
-            systemd,
+            supervisor,
             proxy,
             port_range: (9000, 9100),
         }
@@ -81,7 +81,7 @@ impl<S: SupervisorAtom, P: ProxyAtom> WebTtyManager<S, P> {
 
     /// 创建临时 TTY 实例
     ///
-    /// 使用 systemd-run 创建临时服务并添加 nginx 代理
+    /// 使用 supervisor 创建临时进程并添加 nginx 代理
     pub async fn create_transient(&self, config: &TtyConfig) -> Result<TtyInstance> {
         // 1. 分配端口
         let port = if let Some(p) = config.port {
@@ -108,7 +108,7 @@ impl<S: SupervisorAtom, P: ProxyAtom> WebTtyManager<S, P> {
         let command = config.command.clone().unwrap_or_else(|| "bash".to_string());
         cmd_parts.push(command.clone());
 
-        // 3. 创建临时 systemd 服务
+        // 3. 创建临时 supervisor 进程
         let unit_name = format!("svcmgr-tty-{}", config.name);
         let opts = TransientOptions {
             name: unit_name.clone(),
@@ -120,7 +120,7 @@ impl<S: SupervisorAtom, P: ProxyAtom> WebTtyManager<S, P> {
             working_directory: None,
         };
 
-        let transient_unit = self.systemd.run_transient(&opts).await?;
+        let transient_unit = self.supervisor.run_transient(&opts).await?;
 
         // 4. 添加 nginx 代理路由
         self.proxy.add_tty_route(&config.name, port)?;
@@ -150,15 +150,15 @@ impl<S: SupervisorAtom, P: ProxyAtom> WebTtyManager<S, P> {
         }
 
         // 2. 停止临时服务
-        self.systemd.stop_transient(&instance.unit_name).await?;
+        self.supervisor.stop_transient(&instance.unit_name).await?;
 
         // 3. 创建持久化配置（这里简化实现，实际应使用 template 渲染）
         let _persistent_unit = format!("svcmgr-tty-{}.service", name);
 
-        // TODO: 实际实现应使用 TemplateAtom 渲染 systemd service 文件
+        // TODO: 实际实现应使用 TemplateAtom 渲染 supervisor ServiceDef 文件
         // 这里返回错误提示需要手动创建持久化配置
         Err(Error::NotSupported(
-            "Persistent TTY creation requires systemd service file template".to_string(),
+            "Persistent TTY creation requires supervisor service definition template".to_string(),
         ))
     }
 
@@ -169,9 +169,9 @@ impl<S: SupervisorAtom, P: ProxyAtom> WebTtyManager<S, P> {
 
         // 2. 停止服务
         if instance.persistent {
-            self.systemd.stop(&instance.unit_name).await?;
+            self.supervisor.stop(&instance.unit_name).await?;
         } else {
-            self.systemd.stop_transient(&instance.unit_name).await?;
+            self.supervisor.stop_transient(&instance.unit_name).await?;
         }
 
         // 3. 移除 nginx 代理路由
@@ -208,9 +208,9 @@ impl<S: SupervisorAtom, P: ProxyAtom> WebTtyManager<S, P> {
             .find(|r| r.name == name)
             .ok_or_else(|| Error::Config(format!("TTY instance '{}' not found", name)))?;
 
-        // 2. 查询 systemd 服务状态
+        // 2. 查询 supervisor 服务状态
         let unit_name = format!("svcmgr-tty-{}", name);
-        let unit_status = self.systemd.status(&unit_name).await.ok();
+        let unit_status = self.supervisor.status(&unit_name).await.ok();
 
         // 3. 判断运行状态
         let status = if let Some(ref s) = unit_status {
@@ -223,12 +223,12 @@ impl<S: SupervisorAtom, P: ProxyAtom> WebTtyManager<S, P> {
             TtyStatus::Stopped
         };
 
-        // 4. 判断是否持久化（简化判断：临时服务通常不在 systemd list-units 中持久存在）
+        // 4. 判断是否持久化（简化判断：当前实现无法区分持久化/临时，仅按是否能查询到状态）
         let persistent = unit_status.is_some();
 
         Ok(TtyInstance {
             name: name.to_string(),
-            command: "bash".to_string(), // 简化：无法从 systemd 反查命令
+            command: "bash".to_string(), // 简化：无法从 supervisor 反查命令
             port: route.port,
             url: format!("/tty/{}/", name),
             unit_name,

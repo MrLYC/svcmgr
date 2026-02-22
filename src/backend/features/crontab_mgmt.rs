@@ -1,11 +1,12 @@
+//! Cron Task Management Feature
+//!
+//! High-level cron task management built on the unified built-in supervisor.
+//!
+//! Dependencies:
+//! - atoms::supervisor: SchedulerAtom via SupervisorManager
+//! - atoms::template: TemplateAtom
+
 use crate::atoms::template::{TemplateAtom, TemplateContext, TemplateEngine};
-/// Cron Task Management Feature
-///
-/// High-level cron task management built on the unified built-in supervisor.
-///
-/// Dependencies:
-/// - atoms::supervisor: SchedulerAtom via SupervisorManager
-/// - atoms::template: TemplateAtom
 use crate::atoms::{CronTask, SchedulerAtom, SupervisorManager};
 use crate::error::{Error, Result};
 use chrono::{DateTime, Utc};
