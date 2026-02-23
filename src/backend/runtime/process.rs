@@ -161,13 +161,91 @@ impl ProcessHandle {
         Ok(exit_code)
     }
 
-    /// Try to kill the process (sends SIGTERM)
-    pub async fn kill(&mut self) -> Result<()> {
-        info!("Killing process {} (PID: {})", self.name, self.pid);
+    /// Try to kill the process gracefully (SIGTERM), with SIGKILL fallback after timeout
+    ///
+    /// # Arguments
+    /// * `timeout` - Optional timeout duration. If specified, sends SIGKILL after timeout.
+    ///               If None, only sends SIGTERM without waiting.
+    ///
+    /// # Returns
+    /// - Ok(true) if process terminated gracefully (SIGTERM)
+    /// - Ok(false) if process was force-killed (SIGKILL after timeout)
+    /// - Err if kill operation failed
+    pub async fn kill(&mut self, timeout: Option<std::time::Duration>) -> Result<bool> {
+        info!(
+            "Sending SIGTERM to process {} (PID: {})",
+            self.name, self.pid
+        );
 
-        self.child.kill().await.context("Failed to kill process")?;
+        // Send SIGTERM
+        #[cfg(unix)]
+        {
+            use nix::sys::signal::{self, Signal};
+            use nix::unistd::Pid;
 
-        Ok(())
+            let pid = Pid::from_raw(self.pid as i32);
+            signal::kill(pid, Signal::SIGTERM).context("Failed to send SIGTERM")?;
+        }
+
+        #[cfg(not(unix))]
+        {
+            // On non-Unix platforms, use tokio's kill (which sends SIGKILL)
+            self.child.kill().await.context("Failed to kill process")?;
+            return Ok(false); // Force-killed immediately on non-Unix
+        }
+
+        // If no timeout specified, return immediately after sending SIGTERM
+        let Some(timeout_duration) = timeout else {
+            return Ok(true); // Graceful termination requested, but not waiting
+        };
+
+        // Wait for graceful termination with timeout
+        match tokio::time::timeout(timeout_duration, self.child.wait()).await {
+            Ok(Ok(_status)) => {
+                info!(
+                    "Process {} (PID: {}) terminated gracefully after SIGTERM",
+                    self.name, self.pid
+                );
+                Ok(true) // Graceful termination
+            }
+            Ok(Err(e)) => {
+                error!("Error waiting for process {}: {}", self.name, e);
+                Err(e.into())
+            }
+            Err(_elapsed) => {
+                // Timeout expired, force-kill with SIGKILL
+                warn!(
+                    "Process {} (PID: {}) did not terminate after {:?}, sending SIGKILL",
+                    self.name, self.pid, timeout_duration
+                );
+
+                #[cfg(unix)]
+                {
+                    use nix::sys::signal::{self, Signal};
+                    use nix::unistd::Pid;
+
+                    let pid = Pid::from_raw(self.pid as i32);
+                    signal::kill(pid, Signal::SIGKILL).context("Failed to send SIGKILL")?;
+                }
+
+                #[cfg(not(unix))]
+                {
+                    self.child.kill().await.context("Failed to send SIGKILL")?;
+                }
+
+                // Wait for forced termination (should be immediate)
+                self.child
+                    .wait()
+                    .await
+                    .context("Failed to wait after SIGKILL")?;
+
+                info!(
+                    "Process {} (PID: {}) force-killed with SIGKILL",
+                    self.name, self.pid
+                );
+                Ok(false) // Force-killed
+            }
+        }
     }
 
     /// Check if the process is still running
@@ -269,7 +347,7 @@ mod tests {
         assert!(handle.is_running());
 
         // Kill the process
-        handle.kill().await.unwrap();
+        handle.kill(Some(Duration::from_secs(1))).await.unwrap();
 
         // Wait a bit for process to terminate
         tokio::time::sleep(Duration::from_millis(100)).await;

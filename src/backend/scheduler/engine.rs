@@ -607,7 +607,9 @@ impl SchedulerEngine {
 
         if let Some(mut process) = task.process.take() {
             tracing::info!("Stopping task '{}'", task_name);
-            process.kill().await?;
+            process
+                .kill(Some(std::time::Duration::from_secs(5)))
+                .await?;
             task.state = TaskState::Completed {
                 exit_code: -1,
                 finished_at: Instant::now(),
