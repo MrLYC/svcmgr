@@ -3,7 +3,7 @@
 > 版本：2.0.0-draft
 > 基于：MISE_REDESIGN_RESEARCH_ZH.md
 
-## 文档结构（18个规范文档）
+## 文档结构（19个规范文档）
 
 ### 00-09: 架构与核心组件
 
@@ -15,6 +15,7 @@
 - **05-web-service.md** - Web 服务与内置反向代理
 - **06-feature-flags.md** - 功能开关机制
 - **07-mise-integration.md** - mise 集成层（Port-Adapter 模式）
+ **08-config-validation.md** - 配置校验与 Doctor 机制
 
 ### 10-19: API 设计
 
@@ -33,7 +34,7 @@
 
 ## 规范文档覆盖范围
 
-### 架构与核心（9/9 完成）
+### 架构与核心（10/10 完成）
 
 | 文档 | 状态 | 描述 |
 |------|------|------|
@@ -45,6 +46,7 @@
 | ✅ 05-web-service.md | 完成 | 内置 HTTP 反向代理（基于 axum），替代 nginx |
 | ✅ 06-feature-flags.md | 完成 | 功能开关机制、自动检测、优雅降级 |
 | ✅ 07-mise-integration.md | 完成 | Port-Adapter 防腐层、版本兼容性处理 |
+| ✅ 08-config-validation.md | 完成 | 配置校验与 Doctor 机制，三层校验，自动修复 |
 
 ### API 规范（6/6 完成）
 
