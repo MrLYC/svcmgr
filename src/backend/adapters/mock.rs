@@ -275,11 +275,9 @@ mod tests {
         adapter.install("python", "3.12").await.unwrap();
         let tools = adapter.list_installed().await.unwrap();
         assert_eq!(tools.len(), 3);
-        assert!(
-            tools
-                .iter()
-                .any(|t| t.name == "python" && t.version == "3.12")
-        );
+        assert!(tools
+            .iter()
+            .any(|t| t.name == "python" && t.version == "3.12"));
 
         // Test remove
         adapter.remove("node", "20").await.unwrap();

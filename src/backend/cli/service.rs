@@ -1,23 +1,24 @@
 //! Service lifecycle management commands
 //!
-//! Phase 1.3: Basic service management
-//! - start: Start a service in foreground
+//! Phase 1.4: Process management with logging
+//! - start: Start a service with log redirection
 //! - stop: Stop a running service
 //! - list: List all services and their status
 
+use crate::config::models::SvcmgrConfig;
+use crate::runtime::ProcessHandle;
 use anyhow::{Context, Result};
+use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use tokio::process::Command;
-
-use crate::config::models::SvcmgrConfig;
-
 /// Start a service
 ///
-/// Phase 1.3 implementation: Run service in foreground (no systemd)
+/// Phase 1.4 implementation: Run service with ProcessHandle
 /// - Executes mise task if run_mode="mise"
 /// - Executes direct command if run_mode="script"
 /// - Records PID to ~/.config/svcmgr/pids/<service>.pid
+/// - Redirects stdout/stderr to ~/.local/share/svcmgr/logs/<service>.{stdout,stderr}.log
 pub async fn start(service_name: &str, config: &SvcmgrConfig) -> Result<()> {
     // Find service in config
     let service = config
@@ -50,10 +51,15 @@ pub async fn start(service_name: &str, config: &SvcmgrConfig) -> Result<()> {
     }
 
     println!("🚀 Starting service '{}'...", service_name);
+    // Prepare log directory
+    let log_dir = dirs::data_local_dir()
+        .context("Cannot determine data directory")?
+        .join("svcmgr/logs");
+    fs::create_dir_all(&log_dir)
+        .with_context(|| format!("Failed to create log directory: {}", log_dir.display()))?;
 
     // Build command based on run_mode
-    // Build command based on run_mode
-    let mut cmd = match service.run_mode {
+    let command: Vec<String> = match service.run_mode {
         crate::config::models::RunMode::Mise => {
             let task_name = service.task.as_ref().with_context(|| {
                 format!(
@@ -61,70 +67,59 @@ pub async fn start(service_name: &str, config: &SvcmgrConfig) -> Result<()> {
                     service_name
                 )
             })?;
-            let mut cmd = Command::new("mise");
-            cmd.arg("run").arg(task_name);
-            cmd
+            vec!["mise".to_string(), "run".to_string(), task_name.clone()]
         }
-
         crate::config::models::RunMode::Script => {
-            let command = service.command.as_ref().with_context(|| {
+            let cmd = service.command.as_ref().with_context(|| {
                 format!(
                     "Service '{}' uses run_mode='script' but 'command' is not specified",
                     service_name
                 )
             })?;
             // Parse command (simple split by whitespace - not shell-aware)
-            let parts: Vec<&str> = command.split_whitespace().collect();
+            let parts: Vec<&str> = cmd.split_whitespace().collect();
             if parts.is_empty() {
                 anyhow::bail!("Service '{}' has empty command", service_name);
             }
-            let mut cmd = Command::new(parts[0]);
-            for arg in &parts[1..] {
-                cmd.arg(arg);
-            }
-            cmd
+            parts.iter().map(|s| s.to_string()).collect()
         }
     };
 
-    // Set working directory if specified
-    if let Some(workdir) = &service.workdir {
-        cmd.current_dir(workdir);
-    }
+    // Prepare environment variables
+    let env_vars: HashMap<String, String> = service.env.clone();
 
-    // Spawn process
-    let mut child = cmd
-        .spawn()
+    // Prepare working directory
+    let workdir = service.workdir.clone();
+
+    // Spawn process using ProcessHandle
+    let handle = ProcessHandle::spawn(service_name, &command, env_vars, workdir, log_dir.clone())
+        .await
         .with_context(|| format!("Failed to start service '{}'", service_name))?;
-
-    // Get PID and write to file
-    let pid = child
-        .id()
-        .with_context(|| format!("Failed to get PID for service '{}'", service_name))?;
+    let pid = handle.pid();
     fs::write(&pid_file, pid.to_string())
         .with_context(|| format!("Failed to write PID file: {}", pid_file.display()))?;
 
     println!("✅ Service '{}' started (PID: {})", service_name, pid);
     println!("   PID file: {}", pid_file.display());
+    println!("   Logs: {}/{}.stdout.log", log_dir.display(), service_name);
+    println!("        {}/{}.stderr.log", log_dir.display(), service_name);
 
-    // Wait for process to complete (foreground mode)
-    let status = child
-        .wait()
+    // Wait for process to complete (foreground mode - Phase 1.3 compatibility)
+    let exit_code = handle
+        .wait_for_exit()
         .await
         .with_context(|| format!("Failed to wait for service '{}'", service_name))?;
-
-    // Clean up PID file
     if pid_file.exists() {
         fs::remove_file(&pid_file)?;
     }
 
-    if status.success() {
+    if exit_code == 0 {
         println!("✅ Service '{}' exited successfully", service_name);
         Ok(())
     } else {
-        anyhow::bail!("Service '{}' exited with status: {}", service_name, status);
+        anyhow::bail!("Service '{}' exited with code: {}", service_name, exit_code);
     }
 }
-
 /// Stop a running service
 ///
 /// Reads PID from ~/.config/svcmgr/pids/<service>.pid and sends SIGTERM

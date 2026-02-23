@@ -217,16 +217,12 @@ async fn test_mock_adapter_config_modification() -> Result<()> {
     // Verify modification
     let tools = adapter.list_installed().await?;
     assert_eq!(tools.len(), 2);
-    assert!(
-        tools
-            .iter()
-            .any(|t| t.name == "python" && t.version == "3.12")
-    );
-    assert!(
-        tools
-            .iter()
-            .any(|t| t.name == "rust" && t.version == "1.75")
-    );
+    assert!(tools
+        .iter()
+        .any(|t| t.name == "python" && t.version == "3.12"));
+    assert!(tools
+        .iter()
+        .any(|t| t.name == "rust" && t.version == "1.75"));
     assert!(!tools.iter().any(|t| t.name == "node"));
 
     Ok(())

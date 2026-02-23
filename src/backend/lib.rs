@@ -3,6 +3,7 @@ pub mod cli;
 pub mod config;
 pub mod ports;
 pub mod runtime;
+pub mod scheduler;
 pub mod web;
 
 // Expose mocks for both unit tests and integration tests
