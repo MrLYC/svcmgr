@@ -1,0 +1,9 @@
+[scheduled_tasks.backup]
+schedule = "0 2 * * *"
+task = "daily-backup"
+enabled = true
+
+[scheduled_tasks.cleanup]
+schedule = "0 3 * * 0"
+task = "weekly-cleanup"
+enabled = true

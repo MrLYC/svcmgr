@@ -1,0 +1,30 @@
+thread 'main' panicked at /rustc-dev/ded5c06cf21d2b93bffd5d884aa6e96934ee4234/compiler/rustc_interface/src/util.rs:165:14:
+called `Result::unwrap()` on an `Err` value: Os { code: 11, kind: WouldBlock, message: "Resource temporarily unavailable" }
+stack backtrace:
+   0:     0x7fe1353febdb - std::backtrace::Backtrace::create::h9a44684ef05ed312
+   1:     0x7fe1353feb25 - std::backtrace::Backtrace::force_capture::ha645bc2502b1d09d
+   2:     0x7fe1343fddbc - std[836535f787e97d3]::panicking::update_hook::<alloc[bc4a0c534c311190]::boxed::Box<rustc_driver_impl[88352806430fedcc]::install_ice_hook::{closure#1}>>::{closure#0}
+   3:     0x7fe1353ffb2f - std::panicking::panic_with_hook::h43adc00fd0e494cb
+   4:     0x7fe1353ff8ea - std::panicking::panic_handler::{{closure}}::h44391079756da3e7
+   5:     0x7fe1353f9789 - std::sys::backtrace::__rust_end_short_backtrace::h934e1568393e5b8f
+   6:     0x7fe1353da17d - __rustc[d9b87f19e823c0ef]::rust_begin_unwind
+   7:     0x7fe1323924a0 - core::panicking::panic_fmt::h62031895f6e012da
+   8:     0x7fe131d2d9f6 - core::result::unwrap_failed::h8e46864fd8bf13c6
+   9:     0x7fe1369454e1 - rustc_interface[3dfce13d5179a6f8]::util::run_in_thread_pool_with_globals::<rustc_interface[3dfce13d5179a6f8]::interface::run_compiler<(), rustc_driver_impl[88352806430fedcc]::run_compiler::{closure#0}>::{closure#1}, ()>
+  10:     0x7fe136c01caa - rustc_driver_impl[88352806430fedcc]::run_compiler
+  11:     0x7fe136bf9a91 - rustc_driver_impl[88352806430fedcc]::main
+  12:     0x5558ef643f57 - rustc_main[a28b5a4988d85a5]::main
+  13:     0x5558ef643f43 - std[836535f787e97d3]::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  14:     0x5558ef643f39 - <std[836535f787e97d3]::rt::lang_start<()>::{closure#0} as core[2e27404414be4892]::ops::function::FnOnce<()>>::call_once::{shim:vtable#0}
+  15:     0x7fe136948439 - std::rt::lang_start_internal::h00c7908c7c2f92b8
+  16:     0x5558ef684947 - main
+  17:     0x7fe130600d90 - __libc_start_call_main
+                               at ./csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+  18:     0x7fe130600e40 - __libc_start_main_impl
+                               at ./csu/../csu/libc-start.c:392:3
+  19:     0x5558ef684859 - <unknown>
+  20:                0x0 - <unknown>
+
+
+rustc version: 1.92.0 (ded5c06cf 2025-12-08)
+platform: x86_64-unknown-linux-gnu

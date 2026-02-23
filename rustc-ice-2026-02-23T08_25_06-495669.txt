@@ -1,0 +1,29 @@
+thread 'main' panicked at compiler/rustc_driver_impl/src/lib.rs:1608:6:
+Unable to install ctrlc handler: System(Os { code: 11, kind: WouldBlock, message: "Resource temporarily unavailable" })
+stack backtrace:
+   0:     0x7fe928bfebdb - std::backtrace::Backtrace::create::h9a44684ef05ed312
+   1:     0x7fe928bfeb25 - std::backtrace::Backtrace::force_capture::ha645bc2502b1d09d
+   2:     0x7fe927bfddbc - std[836535f787e97d3]::panicking::update_hook::<alloc[bc4a0c534c311190]::boxed::Box<rustc_driver_impl[88352806430fedcc]::install_ice_hook::{closure#1}>>::{closure#0}
+   3:     0x7fe928bffb2f - std::panicking::panic_with_hook::h43adc00fd0e494cb
+   4:     0x7fe928bff8ea - std::panicking::panic_handler::{{closure}}::h44391079756da3e7
+   5:     0x7fe928bf9789 - std::sys::backtrace::__rust_end_short_backtrace::h934e1568393e5b8f
+   6:     0x7fe928bda17d - __rustc[d9b87f19e823c0ef]::rust_begin_unwind
+   7:     0x7fe925b924a0 - core::panicking::panic_fmt::h62031895f6e012da
+   8:     0x7fe92552d9f6 - core::result::unwrap_failed::h8e46864fd8bf13c6
+   9:     0x7fe92a3f9684 - rustc_driver_impl[88352806430fedcc]::install_ctrlc_handler
+  10:     0x7fe92a3f9a5e - rustc_driver_impl[88352806430fedcc]::main
+  11:     0x55cba8652f57 - rustc_main[a28b5a4988d85a5]::main
+  12:     0x55cba8652f43 - std[836535f787e97d3]::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  13:     0x55cba8652f39 - <std[836535f787e97d3]::rt::lang_start<()>::{closure#0} as core[2e27404414be4892]::ops::function::FnOnce<()>>::call_once::{shim:vtable#0}
+  14:     0x7fe92a148439 - std::rt::lang_start_internal::h00c7908c7c2f92b8
+  15:     0x55cba8693947 - main
+  16:     0x7fe923e00d90 - __libc_start_call_main
+                               at ./csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+  17:     0x7fe923e00e40 - __libc_start_main_impl
+                               at ./csu/../csu/libc-start.c:392:3
+  18:     0x55cba8693859 - <unknown>
+  19:                0x0 - <unknown>
+
+
+rustc version: 1.92.0 (ded5c06cf 2025-12-08)
+platform: x86_64-unknown-linux-gnu

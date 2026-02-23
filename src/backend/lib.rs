@@ -1,8 +1,9 @@
-pub mod atoms;
+pub mod adapters;
 pub mod cli;
 pub mod config;
-pub mod error;
-pub mod features;
+pub mod ports;
+pub mod runtime;
+pub mod web;
 
-pub use config::Config;
-pub use error::{Error, Result};
+// Expose mocks for both unit tests and integration tests
+pub mod mocks;

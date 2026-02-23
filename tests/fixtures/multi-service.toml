@@ -1,0 +1,10 @@
+[services.api]
+task = "api-server"
+enable = true
+restart = "on-failure"
+
+[services.worker]
+task = "background-worker"
+enable = true
+depends = ["api"]
+restart = "always"

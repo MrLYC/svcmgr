@@ -1,0 +1,11 @@
+[services.a]
+task = "task-a"
+depends = ["b"]
+
+[services.b]
+task = "task-b"
+depends = ["c"]
+
+[services.c]
+task = "task-c"
+depends = ["a"]
