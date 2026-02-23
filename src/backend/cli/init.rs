@@ -145,7 +145,6 @@ workdir = "."  # Working directory (relative to config dir)
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
 
     #[tokio::test]
     async fn test_default_config_is_valid_toml() {

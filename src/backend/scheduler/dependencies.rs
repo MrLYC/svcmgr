@@ -85,35 +85,37 @@ impl DependencyGraph {
     /// graph.add_edge("webapp", "database", DependencyType::Requires)?;
     /// ```
     pub fn add_edge(&mut self, from: &str, to: &str, dep_type: DependencyType) -> Result<()> {
-        let from_idx = self
-            .node_map
-            .get(from)
-            .ok_or_else(|| anyhow!("Task '{}' not found in graph", from))?;
-        let to_idx = self
-            .node_map
-            .get(to)
-            .ok_or_else(|| anyhow!("Task '{}' not found in graph", to))?;
+        // Ensure both nodes exist (create if needed - allows adding dependencies before target task is registered)
+        let from_idx = if let Some(&idx) = self.node_map.get(from) {
+            idx
+        } else {
+            self.add_node(from.to_string())
+        };
 
+        let to_idx = if let Some(&idx) = self.node_map.get(to) {
+            idx
+        } else {
+            self.add_node(to.to_string())
+        };
         // Handle conflicts separately (bidirectional)
         if dep_type == DependencyType::Conflicts {
             self.add_conflict(from, to)?;
             return Ok(());
         }
-
         // Add directed edge: to -> from (dependency -> dependent)
         // This ensures topological sort places dependencies before dependents
-        self.graph.add_edge(*to_idx, *from_idx, dep_type);
+        self.graph.add_edge(to_idx, from_idx, dep_type);
         Ok(())
     }
 
     /// Add a mutual exclusion relationship (bidirectional conflict)
     pub fn add_conflict(&mut self, task_a: &str, task_b: &str) -> Result<()> {
-        // Ensure both tasks exist in the graph
+        // Ensure both tasks exist in the graph (create if needed)
         if !self.node_map.contains_key(task_a) {
-            return Err(anyhow!("Task '{}' not found in dependency graph", task_a));
+            self.add_node(task_a.to_string());
         }
         if !self.node_map.contains_key(task_b) {
-            return Err(anyhow!("Task '{}' not found in dependency graph", task_b));
+            self.add_node(task_b.to_string());
         }
         // Store both orderings to simplify lookup
         let pair1 = (task_a.to_string(), task_b.to_string());
