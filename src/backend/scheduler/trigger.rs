@@ -60,10 +60,11 @@ pub enum EventType {
 }
 
 /// Restart policy for services
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(tag = "policy", rename_all = "snake_case")]
 pub enum RestartPolicy {
     /// Never restart
+    #[default]
     Never,
 
     /// Always restart
@@ -83,12 +84,6 @@ pub enum RestartPolicy {
         #[serde(with = "humantime_serde")]
         window: Duration,
     },
-}
-
-impl Default for RestartPolicy {
-    fn default() -> Self {
-        RestartPolicy::Never
-    }
 }
 
 impl RestartPolicy {

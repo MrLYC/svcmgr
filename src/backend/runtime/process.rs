@@ -165,7 +165,7 @@ impl ProcessHandle {
     ///
     /// # Arguments
     /// * `timeout` - Optional timeout duration. If specified, sends SIGKILL after timeout.
-    ///               If None, only sends SIGTERM without waiting.
+    ///   If None, only sends SIGTERM without waiting.
     ///
     /// # Returns
     /// - Ok(true) if process terminated gracefully (SIGTERM)
