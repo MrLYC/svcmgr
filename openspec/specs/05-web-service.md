@@ -178,6 +178,65 @@ serve_dir = "./docs-output"
 strip_prefix = true            # 访问 /docs/guide.html → 查找 docs-output/guide.html
 ```
 
+#### 2.2.4 路由认证
+
+为 HTTP 路由添加认证保护，通过 `auth` 字段引用凭据名称：
+
+```toml
+# .config/mise/svcmgr/config.toml
+
+# 定义凭据
+[credentials.admin_basic]
+type = "basic"
+username_secret = "admin_username"
+password_secret = "admin_password"
+realm = "Admin Dashboard"
+
+[credentials.api_bearer]
+type = "bearer"
+token_secret = "api_token"
+
+# HTTP 路由配置（带认证）
+[[http.routes]]
+path = "/api"
+backend = "api:http"
+auth = "api_bearer"                 # 引用凭据名称（Bearer Token）
+
+[[http.routes]]
+path = "/admin"
+backend = "admin:http"
+auth = "admin_basic"                # 引用凭据名称（Basic Auth）
+
+[[http.routes]]
+path = "/public"
+backend = "frontend:http"
+# auth 字段省略 = 无认证（公开访问）
+```
+
+**认证类型**：
+
+| 类型 | 说明 | HTTP 头示例 |
+|------|------|-------------|
+| `basic` | HTTP Basic Authentication | `Authorization: Basic YWRtaW46cGFzc3dvcmQ=` |
+| `bearer` | Bearer Token | `Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...` |
+| `api_key` | API Key（Header 或 Query） | `X-API-Key: sk_live_abc123...` 或 `?api_key=sk_live_abc123...` |
+| `custom` | 自定义 Header | `X-Custom-Token: custom_auth_value` |
+
+**认证流程**：
+1. 请求到达代理服务器
+2. 如果路由配置了 `auth` 字段，查找对应的凭据定义
+3. 从 fnox 解密凭据的敏感信息（用户名/密码/token 等）
+4. 验证请求的 HTTP 头或查询参数
+5. 认证成功：转发请求到后端
+6. 认证失败：返回 HTTP 401 Unauthorized
+
+**配置要求**：
+- 引用的凭据名称必须在 `[credentials.<name>]` 中定义
+- 凭据的敏感信息通过 fnox 加密存储在 `fnox.toml` 中
+- 认证失败返回标准的 HTTP 401 响应
+
+**参考**：详见 [09-credential-management.md](./09-credential-management.md)
+
 ### 2.3 HTTPS 配置
 
 ```toml

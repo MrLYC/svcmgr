@@ -127,7 +127,75 @@ path = ".config/app"         # 受 Git 版本化管理的目录
 path = ".config/mise"        # mise 配置目录（可选纳入版本化）
 ```
 
-### 3.3 功能开关 `[features]`
+### 3.3 凭据定义 `[credentials.<name>]`
+
+凭据用于 HTTP 代理认证和外部服务访问，敏感信息通过 fnox 加密存储。
+
+#### 3.3.1 Basic Authentication
+
+```toml
+[credentials.admin_basic]
+type = "basic"
+username_secret = "admin_username"  # 引用 fnox.toml 中的 secret
+password_secret = "admin_password"
+realm = "Admin Area"                # HTTP Basic Auth realm（可选，默认 "Restricted"）
+```
+
+#### 3.3.2 Bearer Token
+
+```toml
+[credentials.api_bearer]
+type = "bearer"
+token_secret = "api_token"          # 引用 fnox.toml 中的 secret
+```
+
+#### 3.3.3 API Key
+
+```toml
+# 通过 HTTP Header 传递
+[credentials.external_api_header]
+type = "api_key"
+key_secret = "external_api_key"     # 引用 fnox.toml 中的 secret
+header_name = "X-API-Key"           # HTTP 头名称
+
+# 通过查询参数传递
+[credentials.external_api_query]
+type = "api_key"
+key_secret = "external_api_key"
+query_param = "api_key"             # 查询参数名称
+```
+
+#### 3.3.4 Custom Header
+
+```toml
+[credentials.custom_auth]
+type = "custom"
+header_name = "X-Custom-Token"      # 自定义头名称
+value_secret = "custom_value"       # 引用 fnox.toml 中的 secret
+```
+
+**关键设计**：
+- **敏感信息分离**：凭据定义只包含引用，实际的密码/token 存储在 fnox.toml 中
+- **加密存储**：fnox 使用 age 或云 KMS 加密敏感信息
+- **Git 友好**：加密后的凭据可以安全地提交到 Git
+- **凭据引用**：在 `[[http.routes]]` 中通过 `auth` 字段引用凭据名称
+
+**fnox 配置示例**：
+```toml
+# .config/mise/svcmgr/fnox.toml
+
+[providers]
+age = { type = "age", recipients = ["age1ql3z7hjy54pw3hyww5ayyfg7zqgvc7w3j2elw8zmrj2kg5sfn9aqmcac8p"] }
+
+[secrets]
+admin_username = { provider = "age", value = "age[...]encrypted_base64[...]" }
+admin_password = { provider = "age", value = "age[...]encrypted_base64[...]" }
+api_token = { provider = "age", value = "age[...]encrypted_base64[...]" }
+```
+
+**参考**：详见 [09-credential-management.md](./09-credential-management.md)
+
+### 3.4 功能开关 `[features]`
 
 ```toml
 [features]
