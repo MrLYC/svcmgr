@@ -374,7 +374,7 @@ impl SchedulerEngine {
             .emit(EventType::SystemInit)
             .context("Failed to emit SystemInit event")?;
 
-        // Spawn OneShot tasks immediately
+        // Spawn OneShot tasks immediately in topological order
         let oneshot_tasks: Vec<String> = self
             .tasks
             .iter()
@@ -387,7 +387,16 @@ impl SchedulerEngine {
             })
             .collect();
 
-        for task_name in oneshot_tasks {
+        // Get topological sort order (dependencies first)
+        let sorted_tasks = self.dependency_graph.topological_sort()?;
+
+        // Filter to only OneShot tasks, preserving topological order
+        let sorted_oneshot: Vec<String> = sorted_tasks
+            .into_iter()
+            .filter(|name| oneshot_tasks.contains(name))
+            .collect();
+
+        for task_name in sorted_oneshot {
             self.spawn_task(&task_name).await?;
         }
 
