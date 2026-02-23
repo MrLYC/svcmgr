@@ -82,6 +82,18 @@ pub struct ScheduledTask {
     /// Timeout (None = no timeout)
     pub timeout: Option<Duration>,
 
+    /// Health check configuration (None = no health check)
+    pub health_check: Option<crate::runtime::HealthCheck>,
+
+    /// Health check interval (default: 10s)
+    pub health_check_interval: Duration,
+
+    /// Max consecutive failures before restart (default: 3)
+    pub health_check_retries: u32,
+
+    /// Current consecutive failure count
+    pub consecutive_failures: u32,
+
     /// Running process handle (if running)
     process: Option<ProcessHandle>,
 }
@@ -122,13 +134,29 @@ impl ScheduledTask {
             backoff,
             tracker,
             timeout: None,
+            health_check: None,
+            health_check_interval: Duration::from_secs(10),
+            health_check_retries: 3,
+            consecutive_failures: 0,
             process: None,
         }
     }
-
     /// Set timeout
     pub fn with_timeout(mut self, timeout: Duration) -> Self {
         self.timeout = Some(timeout);
+        self
+    }
+
+    /// Configure health check
+    pub fn with_health_check(
+        mut self,
+        check: crate::runtime::HealthCheck,
+        interval: Duration,
+        retries: u32,
+    ) -> Self {
+        self.health_check = Some(check);
+        self.health_check_interval = interval;
+        self.health_check_retries = retries;
         self
     }
 }
@@ -203,6 +231,12 @@ pub struct SchedulerEngine {
 
     /// Shutdown flag
     shutdown: bool,
+
+    /// Health checker for periodic health checks
+    health_checker: crate::runtime::HealthChecker,
+
+    /// Health check ticker (runs every 5 seconds)
+    health_check_ticker: Interval,
 }
 
 impl SchedulerEngine {
@@ -217,6 +251,15 @@ impl SchedulerEngine {
             Duration::from_secs(1),
         );
 
+        // Health check ticker runs every 5 seconds
+        let health_check_ticker = interval_at(
+            tokio::time::Instant::now() + Duration::from_secs(5),
+            Duration::from_secs(5),
+        );
+
+        // Create health checker
+        let health_checker = crate::runtime::HealthChecker::new();
+
         Self {
             tasks: HashMap::new(),
             event_bus,
@@ -226,9 +269,10 @@ impl SchedulerEngine {
             cron_ticker,
             log_dir,
             shutdown: false,
+            health_checker,
+            health_check_ticker,
         }
     }
-
     /// Get command sender for external control
     pub fn command_sender(&self) -> mpsc::Sender<SchedulerCommand> {
         self.command_tx.clone()
@@ -330,6 +374,70 @@ impl SchedulerEngine {
 
                     // Check running tasks for exits
                     self.check_running_tasks().await?;
+                }
+
+                // Health check ticker (5th branch)
+                _ = self.health_check_ticker.tick() => {
+                    let now = Instant::now();
+
+                    // Collect unhealthy tasks to avoid borrow checker issues
+                    let mut unhealthy_tasks = Vec::new();
+
+                    for (name, task) in self.tasks.iter_mut() {
+                        // Only check running tasks with health check configured
+                        if let TaskState::Running { started_at, .. } = task.state
+                            && let Some(ref check) = task.health_check {
+                                // Check if enough time has passed since startup
+                                let time_since_start = now.duration_since(started_at);
+
+                                if time_since_start >= task.health_check_interval {
+                                    // Perform health check
+                                    match self.health_checker.check(check).await {
+                                        Ok(true) => {
+                                            // Health check passed
+                                            if task.consecutive_failures > 0 {
+                                                tracing::info!("Task '{}' health recovered", name);
+                                                self.event_bus.emit(EventType::TaskHealthy {
+                                                    task_name: name.clone()
+                                                }).ok();
+                                            }
+                                            task.consecutive_failures = 0;
+                                        }
+                                        Ok(false) | Err(_) => {
+                                            // Health check failed
+                                            task.consecutive_failures += 1;
+                                            tracing::warn!(
+                                                "Task '{}' health check failed (attempt {}/{})",
+                                                name, task.consecutive_failures, task.health_check_retries
+                                            );
+
+                                            if task.consecutive_failures >= task.health_check_retries {
+                                                // Exceeded failure threshold - trigger restart
+                                                tracing::error!("Task '{}' unhealthy, triggering restart", name);
+                                                unhealthy_tasks.push(name.clone());
+                                            }
+                                        }
+                                    }
+                                }
+                        }
+
+                    }
+
+                    // Restart unhealthy tasks
+                    for task_name in unhealthy_tasks {
+                        // Emit unhealthy event
+                        if let Some(task) = self.tasks.get(&task_name) {
+                            self.event_bus.emit(EventType::TaskUnhealthy {
+                                task_name: task_name.clone(),
+                                consecutive_failures: task.consecutive_failures,
+                            }).ok();
+                        }
+
+                        // Trigger restart via handle_task_exit()
+                        if let Err(e) = self.handle_task_exit(&task_name).await {
+                            tracing::error!("Failed to restart unhealthy task '{}': {}", task_name, e);
+                        }
+                    }
                 }
             }
         }

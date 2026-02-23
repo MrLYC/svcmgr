@@ -57,6 +57,15 @@ pub enum EventType {
 
     /// Custom event
     Custom { name: String },
+
+    /// Task health check failed
+    TaskUnhealthy {
+        task_name: String,
+        consecutive_failures: u32,
+    },
+
+    /// Task recovered from unhealthy state
+    TaskHealthy { task_name: String },
 }
 
 /// Restart policy for services
