@@ -565,6 +565,158 @@ DATABASE_URL = "postgres://{{env.DB_USER}}:{{env.DB_PASSWORD}}@localhost/mydb"
 
 ---
 
+### 3.5 运行模式选择指南
+
+svcmgr v2.0 引入**运行模式**特性，允许服务以两种方式执行：
+
+- **mise 模式**（默认，推荐）: 通过 `mise run <task>` 执行
+- **script 模式**: 直接执行命令字符串
+
+#### 3.5.1 何时使用 mise 模式
+
+**推荐场景**（90% 情况）:
+- ✅ 应用服务（Node.js、Python、Ruby 等）
+- ✅ 后台任务和定时任务
+- ✅ 需要依赖管理的服务
+- ✅ 需要版本管理的工具（node@22, python@3.12）
+- ✅ 需要任务依赖链的服务（build → start）
+
+**配置示例**:
+```toml
+# mise 配置 (mise.toml)
+[tools]
+node = "22"
+
+[env]
+DATABASE_URL = "postgres://localhost:5432/mydb"
+
+[tasks.api-start]
+run = "node dist/server.js"
+depends = ["api-build"]
+env = { PORT = "3000" }
+
+# svcmgr 配置 (svcmgr/config.toml)
+[services.api]
+task = "api-start"  # 省略 run_mode，默认为 mise
+enable = true
+restart = "always"
+```
+
+#### 3.5.2 何时使用 script 模式
+
+**适用场景**（10% 情况）:
+- ✅ 系统自带二进制（redis-server、postgres、nginx）
+- ✅ 调试工具（socat、tcpdump、strace）
+- ✅ 不需要 mise 管理的遗留程序
+- ✅ 一次性命令或测试命令
+
+**配置示例**:
+```toml
+# 场景1: 系统二进制（Redis）
+[services.redis]
+run_mode = "script"
+command = "redis-server --port 6379 --daemonize no"
+enable = true
+restart = "on-failure"
+env = { REDIS_LOG_LEVEL = "notice" }
+
+# 场曯2: 调试工具（端口转发）
+[services.debug-proxy]
+run_mode = "script"
+command = "socat TCP-LISTEN:8080,fork TCP:localhost:3000"
+enable = false  # 仅调试时启用
+
+# 场曯3: 遗留程序
+[services.legacy-daemon]
+run_mode = "script"
+command = "/opt/legacy/bin/daemon --config /etc/daemon.conf"
+enable = true
+```
+
+#### 3.5.3 迁移指南
+
+**从 systemd 迁移到 mise 模式**:
+
+```toml
+# 旧配置 (systemd)
+# ExecStart=/usr/bin/node /home/user/app/server.js
+# Environment="PORT=3000"
+
+# 新配置 (mise 模式)
+[tasks.api-start]
+run = "node server.js"
+dir = "/home/user/app"
+env = { PORT = "3000" }
+
+[services.api]
+task = "api-start"
+# run_mode = "mise"  # 默认，可省略
+```
+
+**从 systemd 迁移到 script 模式**（如果原服务不适合 mise 管理）:
+
+```toml
+# 旧配置 (systemd)
+# ExecStart=/usr/bin/redis-server --port 6379
+# Environment="REDIS_LOG_LEVEL=notice"
+
+# 新配置 (script 模式)
+[services.redis]
+run_mode = "script"
+command = "redis-server --port 6379 --daemonize no"
+env = { REDIS_LOG_LEVEL = "notice" }
+```
+
+#### 3.5.4 最佳实践
+
+**推荐做法**:
+1. ✅ 优先使用 mise 模式（利用 mise 的完整能力）
+2. ✅ 仅在特殊场景使用 script 模式
+3. ✅ mise 模式下将命令定义在 mise 任务中（便于复用）
+4. ✅ script 模式下显式声明 `run_mode = "script"`（提高可读性）
+
+**避免做法**:
+1. ❌ 不要为应用服务使用 script 模式（失去 mise 优势）
+2. ❌ 不要在 mise 模式中定义 `command` 字段（会导致验证错误）
+3. ❌ 不要在 script 模式中定义 `task` 字段（会导致验证错误）
+
+#### 3.5.5 配置验证
+
+svcmgr 启动时会验证运行模式配置：
+
+**验证规则**:
+- mise 模式: 必须有 `task` 字段，不能有 `command` 字段
+- script 模式: 必须有 `command` 字段，不能有 `task` 字段
+
+**错误示例**:
+```toml
+# ❌ 错误: mise 模式不能有 command 字段
+[services.api]
+run_mode = "mise"
+task = "api-start"
+command = "node server.js"  # 错误！
+
+# ❌ 错误: script 模式不能有 task 字段
+[services.redis]
+run_mode = "script"
+task = "redis-start"  # 错误！
+command = "redis-server"
+```
+
+#### 3.5.6 运行模式对比
+
+| 特性 | mise 模式 | script 模式 |
+|------|----------|------------|
+| 执行方式 | `mise run <task>` | 直接执行 `command` |
+| 环境变量 | 继承 mise `[env]` | 仅使用 `services.<name>.env` |
+| 工具依赖 | 自动检查和管理 | 无，需手动保证 |
+| 任务依赖 | 支持 `depends` | 不支持 |
+| 工作目录 | mise 任务的 `dir` | `workdir` 字段 |
+| 配置位置 | 需定义 mise 任务 | 仅需 svcmgr 配置 |
+| 推荐场景 | 应用服务、后台任务 | 系统二进制、调试工具 |
+
+---
+
 ## 4. 数据迁移
 
 ### 4.1 服务日志迁移

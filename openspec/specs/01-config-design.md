@@ -69,8 +69,10 @@ run = "python scripts/cleanup.py"
 ```toml
 # .config/mise/svcmgr/config.toml
 
+# 示例 1: mise 模式服务（默认，推荐）
 [services.api]
-task = "api-start"           # 引用 mise 任务名
+run_mode = "mise"            # 运行模式: mise | script （默认 mise，可省略）
+task = "api-start"           # mise 模式: 引用 mise 任务名
 enable = true                # 开机自启
 restart = "always"           # no | always | on-failure
 restart_delay = "2s"         # 指数退避的初始值
@@ -81,7 +83,7 @@ workdir = "/app"             # 工作目录
 timeout = "0"                # 0 = 无超时（长期服务）
 
 # 端口管理（参考 pitchfork，但使用 services.api.ports）
-# 格式：{ 端口名 = 端口号 }
+# 格式: { 端口名 = 端口号 }
 ports = { web = 8080, admin = 9000 }
 
 # cgroups v2 资源限制（可选）
@@ -89,8 +91,16 @@ cpu_max_percent = 50         # 50% CPU
 memory_max = "512m"          # 物理内存上限
 pids_max = 100               # 最大进程数
 
+# 示例 2: script 模式服务（直接执行命令）
+[services.redis]
+run_mode = "script"           # script 模式: 直接执行 command
+command = "redis-server --port 6379 --daemonize no"  # 直接命令
+enable = true
+restart = "on-failure"
+env = { REDIS_LOG_LEVEL = "notice" }  # script 模式的环境变量
+
 [services.worker]
-task = "worker-run"
+task = "worker-run"          # 省略 run_mode，默认为 mise 模式
 enable = true
 restart = "on-failure"
 memory_max = "512m"
@@ -98,14 +108,14 @@ pids_max = 50
 
 [services.cleanup]
 task = "cleanup"
-cron = "0 2 * * *"           # 定时任务：每天凌晨 2 点
-timeout = "600s"             # 10 分钟超时
-```
 
 **关键设计**：
 - **不支持 shell-hook**（与原始 pitchfork 的差异）
 - **端口管理**：使用 `services.<name>.ports` 而非 `daemons.<name>.ports`
-- **任务引用**：`task` 字段引用 mise 任务名，必须在 mise 配置中定义
+ **任务引用**：`task` 字段引用 mise 任务名，必须在 mise 配置中定义
+ **运行模式**：支持 `mise` 和 `script` 两种模式
+  - `mise` 模式（默认）：通过 `mise run <task>` 执行，继承 mise 环境变量和依赖管理
+  - `script` 模式：直接执行 `command` 字段，不依赖 mise 任务，适用于特殊场景
 
 ### 3.2 配置目录管理 `[configurations.<name>]`
 

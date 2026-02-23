@@ -28,6 +28,136 @@
 
 ## 2. 进程生命周期管理
 
+### 2.0 运行模式执行逻辑
+
+svcmgr 支持两种服务运行模式，决定了进程的启动方式：
+
+#### 2.0.1 mise 模式（默认）
+
+**执行方式**: 通过 `mise run <task>` 启动服务
+
+**特点**:
+- 继承 mise 的环境变量管理（`[env]` 和 `[tasks.*.env]`）
+- 自动检查工具依赖（`[tools]`）
+- 支持任务依赖链（`depends`）
+- 工作目录遵循 mise 任务的 `dir` 配置
+
+**实现逻辑**:
+```rust
+async fn spawn_mise_service(
+    name: &str,
+    task: &str,
+    workdir: Option<&Path>,
+) -> Result<Child, ProcessError> {
+    let mut cmd = tokio::process::Command::new("mise");
+    cmd.arg("run").arg(task);
+
+    if let Some(dir) = workdir {
+        cmd.current_dir(dir);
+    }
+
+    cmd.stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?
+}
+```
+
+**环境变量继承**:
+1. 继承 mise 全局 `[env]`
+2. 继承任务特定 `[tasks.<name>.env]`
+3. mise 自动管理工具路径（添加到 PATH）
+
+**配置示例**:
+```toml
+# mise 配置 (mise.toml)
+[tasks.api-start]
+run = "node server.js"
+env = { PORT = "3000" }
+
+# svcmgr 配置 (svcmgr/config.toml)
+[services.api]
+run_mode = "mise"  # 或省略（默认）
+task = "api-start"
+enable = true
+```
+
+#### 2.0.2 script 模式
+
+**执行方式**: 直接执行 `command` 字段的命令字符串
+
+**特点**:
+- 不依赖 mise 任务定义
+- 仅使用 `services.<name>.env` 的环境变量
+- 不检查工具依赖
+- 工作目录仅使用 `workdir` 字段
+
+**实现逻辑**:
+```rust
+async fn spawn_script_service(
+    name: &str,
+    command: &str,
+    env: &HashMap<String, String>,
+    workdir: Option<&Path>,
+) -> Result<Child, ProcessError> {
+    let mut cmd = tokio::process::Command::new("sh");
+    cmd.arg("-c").arg(command);
+
+    cmd.envs(env);
+
+    if let Some(dir) = workdir {
+        cmd.current_dir(dir);
+    }
+
+    cmd.stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?
+}
+```
+
+**环境变量管理**:
+- 仅使用 `services.<name>.env` 字段
+- 不继承 mise 的环境变量
+- 需手动配置工具路径
+
+**适用场景**:
+- 系统二进制（redis-server、postgres）
+- 调试工具（socat、tcpdump）
+- 非 mise 管理的遗留程序
+
+**配置示例**:
+```toml
+[services.redis]
+run_mode = "script"
+command = "redis-server --port 6379 --daemonize no"
+env = { REDIS_LOG_LEVEL = "notice" }
+workdir = "/var/lib/redis"
+enable = true
+```
+
+#### 2.0.3 运行模式对比
+
+| 特性 | mise 模式 | script 模式 |
+|------|----------|------------|
+| 执行方式 | `mise run <task>` | 直接执行 `command` |
+| 环境变量 | 继承 mise `[env]` | 仅使用 `services.<name>.env` |
+| 工具依赖 | 自动检查和管理 | 无，需手动保证 |
+| 任务依赖 | 支持 `depends` | 不支持 |
+| 工作目录 | mise 任务的 `dir` | `workdir` 字段 |
+| 配置位置 | 需定义 mise 任务 | 仅需 svcmgr 配置 |
+| 推荐场景 | 应用服务、后台任务 | 系统二进制、调试工具 |
+
+#### 2.0.4 错误处理
+
+**mise 模式错误**:
+- 任务不存在: 启动时校验，抛出 `ProcessError::TaskNotFound`
+- 工具未安装: mise 自动安装或报错
+- 环境变量缺失: mise 报错并提示
+
+**script 模式错误**:
+- 命令不存在: spawn 失败，进程管理器根据 `restart` 策略重启
+- 环境变量缺失: 直接传递给进程，由进程处理
+- 工作目录不存在: spawn 失败，进程管理器报 `ProcessError::WorkdirNotFound`
+
 ### 2.1 进程启动
 
 #### 启动流程
