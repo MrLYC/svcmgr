@@ -311,6 +311,40 @@ impl AdapterFactory {
 pub trait MiseAdapter: DependencyPort + TaskPort + EnvPort + ConfigPort {}
 ```
 
+---
+
+## 6.4 pitchfork 复用策略
+
+svcmgr 仅复用 pitchfork 的核心进程管理模块：
+
+| pitchfork 模块 | 复用状态 | 说明 |
+|---------------|---------|------|
+| `supervisor` | ✅ 复用 | 进程监督管理 |
+| `daemon` | ✅ 复用 | 守护进程化 |
+| `procs` | ✅ 复用 | 进程操作封装 |
+| `web` | ❌ 不复用 | 独立实现 axum Web 层（详见 05-web-service.md §1.2） |
+
+**不复用 Web 模块的原因**：
+- API 文档覆盖率低（28.61%），稳定性未知
+- svcmgr 需要高度定制的功能（反向代理、Git 版本化）
+- 避免 Web 层的高耦合风险
+
+**依赖配置示例**：
+```toml
+# Cargo.toml
+[dependencies]
+# 仅引入 pitchfork 核心模块
+pitchfork-cli = { version = "1.6", default-features = false, features = ["supervisor", "daemon", "procs"] }
+
+# 独立实现 Web 层
+axum = { version = "0.7", features = ["ws"] }
+hyper = { version = "1.0", features = ["full"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["fs", "trace"] }
+```
+
+**参考文档**：`docs/DESIGN_WEB_FRAMEWORK.md`
+
 ## 7. 优雅降级机制
 
 ```rust

@@ -996,9 +996,510 @@ check_file_permissions = true  # 检查文件权限
 
 ---
 
-## 7. 回滚计划
+## 7. ttyd 迁移指南
 
-### 7.1 回滚触发条件
+### 7.1 迁移概览
+
+**变更**:ttyd (Web 终端) 从独立功能模块迁移到基于 mise 任务的配置驱动模式
+
+**迁移原则**:
+- mise 安装 ttyd 工具
+- mise 任务定义启动命令和参数
+- svcmgr 服务管理进程生命周期
+
+**代码影响**:
+- ❌ 移除独立模块:`features/webtty.rs` (300行)
+- ❌ 移除 CLI 命令:`svcmgr tty create/start/stop/delete`
+- ✅ 新管理方式:通过 `svcmgr service *` 统一管理
+
+---
+
+### 7.2 配置迁移示例
+
+#### 7.2.1 旧配置方式(v1.x - 独立模块)
+
+**通过 CLI 命令创建**:
+```bash
+svcmgr tty create --name bash --port 9001 --command bash
+svcmgr tty start bash
+```
+
+**生成的独立配置段**(内部格式):
+```toml
+[tty.bash]
+port = 9001
+command = "bash"
+title = "Bash Terminal"
+```
+
+#### 7.2.2 新配置方式(v2.0 - mise 任务 + svcmgr 服务)
+
+**Step 1: 在 mise 配置中定义工具和任务**
+
+编辑 `~/.config/mise/config.toml`:
+```toml
+# 1. 安装 ttyd 工具
+[tools]
+ttyd = "1.7.7"
+
+# 2. 定义 Web 终端任务
+[tasks.tty-bash]
+run = "ttyd -p 9001 -t titleFixed='Bash' bash"
+
+[tasks.tty-python]
+run = "ttyd -p 9002 -t titleFixed='Python REPL' python3"
+```
+
+**Step 2: 在 svcmgr 配置中定义服务**
+
+编辑 `~/.config/mise/svcmgr/config.toml`:
+```toml
+# 1. 定义服务(引用 mise 任务)
+[services.tty-bash]
+task = "tty-bash"              # 引用 mise 任务
+enable = true                   # 开机自启
+restart = "always"             # 自动重启策略
+ports = { terminal = 9001 }     # 端口定义
+
+[services.tty-python]
+task = "tty-python"
+enable = true
+ports = { terminal = 9002 }
+
+# 2. 配置 HTTP 路由(访问 Web 终端)
+[[http.routes]]
+path = "/tty/bash"
+target = "service:tty-bash:terminal"  # 代理到服务端口
+websocket = true                       # 启用 WebSocket 支持
+
+[[http.routes]]
+path = "/tty/python"
+target = "service:tty-python:terminal"
+websocket = true
+```
+
+---
+
+### 7.3 迁移步骤
+
+#### Step 1: 安装 ttyd 工具
+
+```bash
+# 方法 1: 通过 mise 配置安装
+echo 'ttyd = "1.7.7"' >> ~/.config/mise/config.toml
+mise install ttyd@1.7.7
+
+# 方法 2: 直接安装
+mise use ttyd@1.7.7
+
+# 验证安装
+which ttyd
+# 输出: /home/user/.local/share/mise/installs/ttyd/1.7.7/bin/ttyd
+```
+
+#### Step 2: 创建 mise 任务定义
+
+编辑 `~/.config/mise/config.toml`,添加任务:
+```toml
+[tasks.tty-bash]
+run = "ttyd -p 9001 -t titleFixed='Bash' bash"
+```
+
+**验证任务定义**:
+```bash
+mise tasks
+# 输出应包含: tty-bash
+
+# 测试任务执行
+mise run tty-bash
+# 输出: [INFO] ttyd 1.7.7 listening on port 9001
+# Ctrl+C 停止测试
+```
+
+#### Step 3: 创建 svcmgr 服务配置
+
+编辑 `~/.config/mise/svcmgr/config.toml`,添加服务和路由:
+```toml
+[services.tty-bash]
+task = "tty-bash"
+enable = true
+ports = { terminal = 9001 }
+
+[[http.routes]]
+path = "/tty/bash"
+target = "service:tty-bash:terminal"
+websocket = true
+```
+
+#### Step 4: 启动服务
+
+```bash
+# 启动服务
+svcmgr service start tty-bash
+
+# 输出:
+# ✓ Service 'tty-bash' started
+# ✓ Listening on port 9001
+# ✓ HTTP route '/tty/bash' configured
+```
+
+#### Step 5: 验证服务
+
+```bash
+# 检查服务状态
+svcmgr service status tty-bash
+
+# 测试 HTTP 路由
+curl -I http://localhost/tty/bash
+# 预期输出: HTTP/1.1 101 Switching Protocols(WebSocket 握手)
+
+# 浏览器访问
+# 打开 http://localhost/tty/bash,应看到 Bash 终端界面
+```
+
+---
+
+### 7.4 破坏性变更
+
+#### 7.4.1 移除的 CLI 命令
+
+以下命令在 v2.0 中**完全移除**:
+
+| 旧命令(v1.x) | 新命令(v2.0) | 说明 |
+|---------------|---------------|------|
+| `svcmgr tty create <name>` | 配置 `.config/mise/config.toml` 添加任务 + 服务 | 创建 Web 终端 |
+| `svcmgr tty start <name>` | `svcmgr service start <name>` | 启动 Web 终端 |
+| `svcmgr tty stop <name>` | `svcmgr service stop <name>` | 停止 Web 终端 |
+| `svcmgr tty delete <name>` | 从配置文件删除任务和服务定义 | 删除 Web 终端 |
+
+#### 7.4.2 配置位置变更
+
+| 项目 | 旧位置(v1.x) | 新位置(v2.0) |
+|-----|---------------|---------------|
+| 工具安装 | 手动安装或系统包管理器 | `~/.config/mise/config.toml` [tools] |
+| 启动命令 | CLI 参数或独立配置 | `~/.config/mise/config.toml` [tasks] |
+| 服务配置 | 内部配置段 `[tty.*]` | `~/.config/mise/svcmgr/config.toml` [services] |
+| HTTP 路由 | 独立路由配置 | `~/.config/mise/svcmgr/config.toml` [[http.routes]] |
+
+#### 7.4.3 管理方式变更
+
+- ✅ **保留功能**:所有 Web 终端功能完全保留(ttyd, WebSocket, HTTP 代理)
+- ❌ **移除独立模块**:`features/webtty.rs` (300行) 完全移除
+- 🔄 **管理方式变更**:从独立 CLI 命令迁移到统一服务管理
+- 🔄 **配置方式变更**:从 CLI 参数迁移到配置文件驱动
+
+**迁移建议**:
+- 更新所有使用 `svcmgr tty *` 命令的脚本和文档
+- 使用 Git 版本控制管理新配置文件
+- 测试 WebSocket 连接是否正常工作
+
+**相关文档**:
+- **22-breaking-changes.md** §4.1 - CLI 命令移除清单
+- **22-breaking-changes.md** §3.4 - 配置格式变更
+- `docs/DESIGN_TTY_CLOUDFLARED.md` - 详细设计决策
+
+---
+
+## 8. cloudflared 迁移指南
+
+### 8.1 迁移概览
+
+**变更**:cloudflared (Cloudflare 隧道) 从独立原子模块迁移到基于 mise 任务的配置驱动模式
+
+**迁移原则**:
+- mise 安装 cloudflared 工具
+- mise 任务定义隧道操作(create, route-dns, run)
+- svcmgr 服务管理隧道进程生命周期
+
+**代码影响**:
+- ❌ 移除独立模块:`atoms/tunnel.rs` (865行)
+- 🔄 可选便捷命令:`cli/tunnel.rs` (约 200行) - 如需保留简化的 CLI 体验
+- ✅ 代码减少:**83%**(1165行 → 200行)
+
+---
+
+### 8.2 配置迁移示例
+
+#### 8.2.1 旧配置方式(v1.x - 独立原子模块)
+
+**独立配置段**:
+```toml
+# ~/.config/svcmgr/config.toml
+[tunnel]
+id = "abc123"
+name = "my-tunnel"
+credentials_file = "/home/user/.cloudflared/abc123.json"
+
+[[tunnel.ingress]]
+hostname = "app.example.com"
+service = "http://localhost:3000"
+
+[[tunnel.ingress]]
+hostname = "api.example.com"
+service = "http://localhost:8000"
+
+[[tunnel.ingress]]
+service = "http_status:404"  # 默认规则
+```
+
+**管理方式**:
+```bash
+svcmgr tunnel create my-tunnel
+svcmgr tunnel route-dns abc123 app.example.com
+svcmgr tunnel start
+```
+
+#### 8.2.2 新配置方式(v2.0 - mise 任务 + svcmgr 服务)
+
+**Step 1: 在 mise 配置中定义工具和任务**
+
+编辑 `~/.config/mise/config.toml`:
+```toml
+# 1. 安装 cloudflared 工具
+[tools]
+cloudflared = "latest"
+
+# 2. 定义环境变量
+[env]
+TUNNEL_ID = "abc123"
+TUNNEL_NAME = "my-tunnel"
+TUNNEL_CREDENTIALS = "~/.cloudflared/abc123.json"
+TUNNEL_CONFIG = "~/.cloudflared/config.yml"
+
+# 3. 定义隧道操作任务
+[tasks.tunnel-create]
+run = "cloudflared tunnel create ${TUNNEL_NAME}"
+
+[tasks.tunnel-route-dns]
+run = "cloudflared tunnel route dns ${TUNNEL_ID} ${HOSTNAME}"
+
+[tasks.tunnel-run]
+run = "cloudflared tunnel run --config ${TUNNEL_CONFIG} ${TUNNEL_ID}"
+```
+
+**Step 2: 创建 cloudflared 配置文件**
+
+创建 `~/.cloudflared/config.yml`:
+```yaml
+tunnel: abc123
+credentials-file: /home/user/.cloudflared/abc123.json
+
+ingress:
+  - hostname: app.example.com
+    service: http://localhost:3000
+  - hostname: api.example.com
+    service: http://localhost:8000
+  - service: http_status:404  # 默认规则
+```
+
+**Step 3: 在 svcmgr 配置中定义服务**
+
+编辑 `~/.config/mise/svcmgr/config.toml`:
+```toml
+[services.tunnel]
+task = "tunnel-run"            # 引用 mise 任务
+enable = true                   # 开机自启
+restart = "always"             # 自动重启策略
+
+[services.tunnel.health]
+type = "http"
+url = "https://app.example.com"
+interval = "30s"
+timeout = "5s"
+```
+
+---
+
+### 8.3 迁移步骤
+
+#### Step 1: 安装 cloudflared 工具
+
+```bash
+# 方法 1: 通过 mise 配置安装
+echo 'cloudflared = "latest"' >> ~/.config/mise/config.toml
+mise install cloudflared@latest
+
+# 方法 2: 直接安装
+mise use cloudflared@latest
+
+# 验证安装
+which cloudflared
+cloudflared --version
+```
+
+#### Step 2: 创建隧道
+
+```bash
+# 通过 mise 任务创建隧道
+mise run tunnel-create
+
+# 输出:
+# Tunnel credentials written to /home/user/.cloudflared/abc123.json
+# Created tunnel 'my-tunnel' with ID: abc123
+```
+
+#### Step 3: 配置 DNS 路由
+
+```bash
+# 配置域名路由
+HOSTNAME=app.example.com mise run tunnel-route-dns
+HOSTNAME=api.example.com mise run tunnel-route-dns
+
+# 输出:
+# Added CNAME record for app.example.com
+# Added CNAME record for api.example.com
+```
+
+#### Step 4: 创建 cloudflared 配置文件
+
+创建 `~/.cloudflared/config.yml`(参考 §8.2.2 Step 2)
+
+#### Step 5: 创建 svcmgr 服务配置
+
+编辑 `~/.config/mise/svcmgr/config.toml`(参考 §8.2.2 Step 3)
+
+#### Step 6: 启动隧道服务
+
+```bash
+# 启动服务
+svcmgr service start tunnel
+
+# 输出:
+# ✓ Service 'tunnel' started
+# ✓ Connected to Cloudflare network
+# ✓ Tunnel 'my-tunnel' is active
+```
+
+#### Step 7: 验证隧道
+
+```bash
+# 检查服务状态
+svcmgr service status tunnel
+
+# 测试隧道连接
+curl https://app.example.com
+# 预期: 返回应用响应
+
+# 查看隧道日志
+svcmgr service logs tunnel --tail 50
+```
+
+---
+
+### 8.4 可选便捷命令
+
+如果希望保留简化的 CLI 体验(类似 v1.x),可以实现可选的便捷命令(约 200行代码):
+
+**实现示例** (`src/cli/tunnel.rs`):
+```rust
+// 便捷命令:内部调用 mise 任务
+use crate::mise::run_mise_task;
+
+pub async fn tunnel_create(name: String) -> Result<()> {
+    run_mise_task("tunnel-create", &[("TUNNEL_NAME", &name)]).await
+}
+
+pub async fn tunnel_route_dns(tunnel_id: String, hostname: String) -> Result<()> {
+    run_mise_task("tunnel-route-dns", &[
+        ("TUNNEL_ID", &tunnel_id),
+        ("HOSTNAME", &hostname)
+    ]).await
+}
+
+pub async fn tunnel_start() -> Result<()> {
+    // 实际调用: svcmgr service start tunnel
+    crate::service::start("tunnel").await
+}
+```
+
+**CLI 定义**:
+```rust
+#[derive(Parser)]
+pub enum TunnelCommand {
+    Create { name: String },
+    RouteDns { tunnel_id: String, hostname: String },
+    Start,
+    Stop,
+}
+```
+
+**使用方式**:
+```bash
+# 便捷命令(如果实现)
+svcmgr tunnel create my-tunnel
+svcmgr tunnel route-dns abc123 app.example.com
+svcmgr tunnel start
+
+# 底层实际执行:
+# - mise run tunnel-create
+# - mise run tunnel-route-dns
+# - svcmgr service start tunnel
+```
+
+**实现决策**:
+- ✅ **推荐**:实现便捷命令,降低用户学习成本(约 200行代码)
+- ❌ **不推荐**:强制用户直接使用 `mise run` 和 `svcmgr service`(学习曲线陡峭)
+
+---
+
+### 8.5 破坏性变更
+
+#### 8.5.1 移除的独立模块
+
+- ❌ **移除模块**:`atoms/tunnel.rs` (865行) 完全移除
+- ❌ **移除配置段**:`[tunnel]` 和 `[[tunnel.ingress]]` 配置段不再支持
+
+#### 8.5.2 配置格式变更
+
+| 项目 | 旧位置(v1.x) | 新位置(v2.0) |
+|-----|---------------|---------------|
+| 工具安装 | 手动安装或系统包管理器 | `~/.config/mise/config.toml` [tools] |
+| 隧道操作 | `svcmgr tunnel *` CLI 命令 | `~/.config/mise/config.toml` [tasks] |
+| 隧道配置 | `~/.config/svcmgr/config.toml` [tunnel] | `~/.cloudflared/config.yml` |
+| 服务配置 | 内部配置段 | `~/.config/mise/svcmgr/config.toml` [services] |
+
+#### 8.5.3 CLI 命令行为变更
+
+如果保留 `svcmgr tunnel *` 命令(可选便捷命令):
+
+| 命令 | 旧行为(v1.x) | 新行为(v2.0) | 兼容性 |
+|-----|---------------|---------------|--------|
+| `svcmgr tunnel create <name>` | 直接调用 cloudflared API | 调用 `mise run tunnel-create` | 参数可能不兼容 |
+| `svcmgr tunnel route-dns <id> <host>` | 直接调用 cloudflared API | 调用 `mise run tunnel-route-dns` | 参数可能不兼容 |
+| `svcmgr tunnel start` | 启动独立守护进程 | 调用 `svcmgr service start tunnel` | 行为变更 |
+| `svcmgr tunnel stop` | 停止独立守护进程 | 调用 `svcmgr service stop tunnel` | 行为变更 |
+
+**迁移建议**:
+- 测试所有 `svcmgr tunnel *` 命令的脚本,参数可能需要调整
+- 验证隧道配置文件格式(从 TOML 迁移到 YAML)
+- 测试 DNS 路由是否正常工作
+
+---
+
+### 8.6 代码减少统计
+
+| 模块 | 旧代码行数(v1.x) | 新代码行数(v2.0) | 减少比例 |
+|------|-------------------|-------------------|---------|
+| `features/webtty.rs` | 300 | 0 | **100%** |
+| `atoms/tunnel.rs` | 865 | 0 | **100%** |
+| `cli/tunnel.rs`(可选) | 0 | ~200 | - |
+| **总计** | **1165** | **200** | **83%** |
+
+**收益**:
+- ✅ 代码维护成本降低 83%
+- ✅ 配置文件驱动,易于测试和调试
+- ✅ 与 mise 生态无缝集成
+- ✅ 自动依赖管理(mise 安装 cloudflared)
+
+**相关文档**:
+- **22-breaking-changes.md** §4.3 - CLI 命令行为变更
+- **22-breaking-changes.md** §3.4 - 配置格式变更
+- `docs/DESIGN_TTY_CLOUDFLARED.md` - 详细设计决策
+
+---
+## 9. 回滚计划
+
+### 9.1 回滚触发条件
 
 以下情况应立即回滚：
 
@@ -1012,7 +1513,7 @@ check_file_permissions = true  # 检查文件权限
 | 部分功能异常 | 中 | 评估影响范围 |
 | 配置错误（不影响服务） | 低 | 修复配置，不回滚 |
 
-### 7.2 手动回滚步骤
+### 9.2 手动回滚步骤
 
 如果自动回滚工具不可用，手动回滚步骤：
 
@@ -1060,7 +1561,7 @@ systemctl --user status api.service worker.service
 echo "=== 回滚完成 ==="
 ```
 
-### 7.3 数据恢复
+### 9.3 数据恢复
 
 如果数据在迁移过程中损坏：
 
@@ -1080,7 +1581,7 @@ cp -r "$BACKUP_DIR/svcmgr/data/"* ~/.local/share/svcmgr/data/
 systemctl --user start api.service worker.service
 ```
 
-### 7.4 故障排查清单
+### 9.4 故障排查清单
 
 回滚前检查以下项目，可能问题可修复而无需回滚：
 
@@ -1097,9 +1598,9 @@ systemctl --user start api.service worker.service
 
 ---
 
-## 8. 验证清单
+## 10. 验证清单
 
-### 8.1 迁移前验证
+### 10.1 迁移前验证
 
 - [ ] **备份完成**：所有配置和数据已备份到安全位置
 - [ ] **mise 已安装**：版本 >= 2024.1.0

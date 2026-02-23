@@ -38,15 +38,314 @@
 
 | Phase | 名称 | 周期 | 核心目标 | 主要交付 |
 |-------|------|------|----------|----------|
+| **Phase 0** | 测试基础设施 | 1-2 周 | 建立测试框架 | MiseMock + FakeProcessManager + Fixtures + CI |
 | **Phase 1** | MVP 基础 | 2-3 周 | 验证架构可行性 | 配置解析 + CLI + 基础服务管理 |
 | **Phase 2** | 进程管理 | 2-3 周 | 完善进程生命周期 | 调度引擎 + 资源限制 + 健康检查 |
 | **Phase 3** | Web 服务 | 2-3 周 | 实现 HTTP API | REST API + 内置反向代理 + 静态文件服务 |
 | **Phase 4** | 高级特性 | 3-4 周 | 丰富调度能力 | 定时任务 + 事件驱动 + Git 版本控制 |
 | **Phase 5** | 生产优化 | 2-3 周 | 生产级强化 | 性能优化 + 可观测性 + 故障恢复 |
 
-**总周期预估**: 11-16 周（约 3-4 个月）
+**总周期预估**: 12-18 周（约 3-4.5 个月）
 
 ---
+
+## Phase 0: 测试基础设施（1-2 周）
+
+### 目标
+
+建立完整的测试框架和 Mock 基础设施，为后续开发提供坚实的测试支持。确保所有核心模块（配置解析、mise 集成、进程管理）都有可靠的单元测试和集成测试基础。
+
+### 核心交付物
+
+#### 0.1 MiseMock 实现
+
+**文件**: `tests/mocks/mise.rs`
+
+**功能**:
+- 模拟 mise CLI 行为（tools、env、tasks）
+- 生成虚拟的 mise 配置文件
+- 模拟 mise 命令执行结果
+- 支持自定义工具版本和环境变量
+
+**数据结构**:
+```rust
+pub struct MiseMock {
+    /// 工具名称 -> 版本映射
+    pub tools: HashMap<String, String>,
+    /// 环境变量映射
+    pub env: HashMap<String, String>,
+    /// 任务名称 -> 任务定义映射
+    pub tasks: HashMap<String, TaskDef>,
+    /// 工作目录（用于生成 .mise.toml）
+    pub workdir: PathBuf,
+}
+
+impl MiseMock {
+    /// 创建新的 MiseMock 实例
+    pub fn new(workdir: PathBuf) -> Self;
+    
+    /// 添加工具
+    pub fn with_tool(mut self, name: &str, version: &str) -> Self;
+    
+    /// 添加环境变量
+    pub fn with_env(mut self, key: &str, value: &str) -> Self;
+    
+    /// 添加任务定义
+    pub fn with_task(mut self, name: &str, task: TaskDef) -> Self;
+    
+    /// 写入 mise 配置文件到 workdir
+    pub fn write_config(&self) -> Result<()>;
+    
+    /// 模拟执行 mise 任务
+    pub fn mock_exec(&self, task_name: &str) -> Result<Output>;
+}
+
+pub struct TaskDef {
+    pub run: String,
+    pub env: HashMap<String, String>,
+    pub depends: Vec<String>,
+}
+```
+
+**验收标准**:
+- ✅ 能生成有效的 `.mise.toml` 配置文件
+- ✅ 能模拟所有 mise CLI 操作（install、exec、env）
+- ✅ 单元测试覆盖率 > 90%
+- ✅ 支持嵌套任务依赖关系
+
+---
+
+#### 0.2 FakeProcessManager 实现
+
+**文件**: `tests/mocks/process.rs`
+
+**功能**:
+- 虚拟进程管理（不真正启动进程）
+- 模拟进程状态转换（Starting → Running → Stopped）
+- 模拟健康检查和重启行为
+- 支持并发进程管理测试
+
+**数据结构**:
+```rust
+pub struct FakeProcessManager {
+    /// 进程名称 -> 进程实例映射
+    processes: Arc<Mutex<HashMap<String, FakeProcess>>>,
+    /// 事件历史记录（用于验证调度顺序）
+    history: Arc<Mutex<Vec<ProcessEvent>>>,
+}
+
+pub struct FakeProcess {
+    pub name: String,
+    pub pid: u32,
+    pub state: ProcessState,
+    pub start_time: DateTime<Utc>,
+    pub exit_code: Option<i32>,
+    pub restart_count: u32,
+}
+
+pub enum ProcessState {
+    Starting,
+    Running,
+    Stopping,
+    Stopped,
+    Failed,
+}
+
+pub enum ProcessEvent {
+    Started { name: String, pid: u32, time: DateTime<Utc> },
+    Stopped { name: String, exit_code: i32, time: DateTime<Utc> },
+    Restarted { name: String, attempt: u32, time: DateTime<Utc> },
+    HealthCheckFailed { name: String, time: DateTime<Utc> },
+}
+
+impl FakeProcessManager {
+    pub fn new() -> Self;
+    
+    /// 启动虚拟进程
+    pub async fn start(&self, name: &str, command: &str) -> Result<u32>;
+    
+    /// 停止虚拟进程
+    pub async fn stop(&self, name: &str) -> Result<()>;
+    
+    /// 获取进程状态
+    pub fn get_state(&self, name: &str) -> Option<ProcessState>;
+    
+    /// 获取事件历史（用于测试验证）
+    pub fn get_history(&self) -> Vec<ProcessEvent>;
+    
+    /// 模拟进程崩溃
+    pub fn simulate_crash(&self, name: &str, exit_code: i32) -> Result<()>;
+}
+```
+
+**验收标准**:
+- ✅ 能模拟进程完整生命周期（启动、运行、停止、崩溃）
+- ✅ 支持并发进程管理测试（Arc<Mutex<...>>）
+- ✅ 事件历史记录完整（用于验证调度顺序）
+- ✅ 单元测试覆盖率 > 90%
+
+---
+
+#### 0.3 测试 Fixtures
+
+**文件**: `tests/fixtures/*.toml`
+
+**内容清单**:
+
+1. **simple-service.toml** - 单服务配置
+   ```toml
+   [services.web]
+   task = "dev-server"
+   enable = true
+   restart = "always"
+   ```
+
+2. **multi-service.toml** - 多服务配置
+   ```toml
+   [services.api]
+   task = "api-server"
+   enable = true
+   
+   [services.worker]
+   task = "background-worker"
+   enable = true
+   depends = ["api"]
+   ```
+
+3. **service-with-deps.toml** - 服务依赖链
+   ```toml
+   [services.db]
+   task = "postgres"
+   
+   [services.redis]
+   task = "redis-server"
+   
+   [services.app]
+   task = "web-app"
+   depends = ["db", "redis"]
+   ```
+
+4. **cron-tasks.toml** - 定时任务配置
+   ```toml
+   [scheduled_tasks.backup]
+   schedule = "0 2 * * *"
+   task = "daily-backup"
+   ```
+
+5. **http-routes.toml** - HTTP 路由配置
+   ```toml
+   [[http.routes]]
+   path = "/api"
+   target = "service:api:http"
+   
+   [[http.routes]]
+   path = "/static"
+   static_dir = "./public"
+   ```
+
+6. **invalid-*.toml** - 错误配置用例
+   - `invalid-syntax.toml` - TOML 语法错误
+   - `invalid-missing-task.toml` - 引用不存在的 mise 任务
+   - `invalid-circular-deps.toml` - 循环依赖
+
+**验收标准**:
+- ✅ 所有 fixtures 能被配置解析器正确解析
+- ✅ 错误配置能触发预期的错误
+- ✅ Fixtures 覆盖所有主要配置场景
+
+---
+
+#### 0.4 测试工具链配置
+
+**文件**: `.github/workflows/test.yml`, `Cargo.toml`, `justfile`
+
+**功能**:
+- CI/CD 测试管道（GitHub Actions）
+- 代码覆盖率工具（tarpaulin 或 grcov）
+- 测试运行器配置（nextest 或 cargo test）
+- 集成测试隔离（每个测试使用独立临时目录）
+
+**CI 配置示例**:
+```yaml
+# .github/workflows/test.yml
+name: Test
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      
+      # 安装 mise（测试需要）
+      - run: curl https://mise.run | sh
+      - run: echo "$HOME/.local/bin" >> $GITHUB_PATH
+      
+      # 运行单元测试
+      - run: cargo test --lib
+      
+      # 运行集成测试
+      - run: cargo test --test '*'
+      
+      # 生成覆盖率报告
+      - run: cargo install cargo-tarpaulin
+      - run: cargo tarpaulin --out Xml
+      
+      # 上传覆盖率
+      - uses: codecov/codecov-action@v4
+```
+
+**Cargo.toml 测试依赖**:
+```toml
+[dev-dependencies]
+tokio-test = "0.4"
+tempfile = "3.0"
+assert_cmd = "2.0"
+predicates = "3.0"
+pretty_assertions = "1.4"
+```
+
+**验收标准**:
+- ✅ CI 能运行所有测试并生成覆盖率报告
+- ✅ 覆盖率目标：单元测试 > 90%，集成测试 > 80%
+- ✅ 测试隔离正确（并发运行不冲突）
+- ✅ 文档说明如何本地运行测试
+
+---
+
+### 依赖关系
+
+```
+Phase 0 (测试基础设施)
+    ↓
+Phase 1 (MVP 基础) - 依赖 MiseMock 和 FakeProcessManager
+    ↓
+Phase 2-5 (后续阶段)
+```
+
+**说明**:
+- Phase 1 的配置解析器和 mise 集成层单元测试依赖 MiseMock
+- Phase 2 的进程管理器集成测试依赖 FakeProcessManager
+- 所有阶段的集成测试依赖测试 Fixtures
+
+---
+
+### 完成标志
+
+Phase 0 完成需满足以下条件:
+
+- ✅ MiseMock 和 FakeProcessManager 单元测试通过
+- ✅ 测试 Fixtures 覆盖所有主要场景（6+ 配置文件）
+- ✅ CI 管道能正常运行并生成覆盖率报告
+- ✅ 文档说明如何编写和运行测试（TESTING.md）
+- ✅ 代码覆盖率达到目标（单元测试 > 90%）
+
+**参考文档**: `docs/DESIGN_TESTING_STRATEGY.md`
+
+---
+
 
 ## Phase 1: MVP 基础（2-3 周）
 

@@ -28,7 +28,45 @@
 - 缓存、限流、WAF 等高级功能
 - nginx 的完整 Lua/njs 脚本能力
 
-### 1.2 核心功能
+### 1.2 Web 框架设计决策
+
+**技术选型**：独立实现 axum Web 层（不复用 pitchfork Web 模块）
+
+**决策背景**：
+- pitchfork 内置 `web` 模块（基于 axum）提供 Web Dashboard
+- pitchfork 可作为 Rust 库依赖（`pitchfork-cli` crate v1.6.0）
+- 但 API 文档覆盖率低（28.61%），Web 模块稳定性未知
+
+**最终方案**：方案 B - 独立实现 axum Web 层
+
+| 方案 | 优点 | 缺点 | 评估结果 |
+|------|------|------|----------|
+| **方案 A：完全复用 pitchfork Web 模块** | 开发快速（几乎零代码） | 高耦合风险、扩展性受限、版本依赖强 | ❌ 不推荐 |
+| **方案 B：独立实现 axum Web 层** | 低风险、高灵活性、版本独立 | 需实现约 500-800 行代码 | ✅ 推荐 |
+| **方案 C：混合方案** | 复用部分模块（如中间件） | 仍存在耦合风险 | 🤔 可选 |
+
+**复用策略**：
+- ✅ **复用 pitchfork 核心模块**：`supervisor`、`daemon`、`procs`（进程管理相关）
+- ❌ **不复用 Web 模块**：独立实现 axum 路由、中间件、反向代理
+- 📖 **参考 pitchfork Web 架构**：学习设计模式，但不直接依赖
+
+**依赖配置**：
+```toml
+# Cargo.toml
+[dependencies]
+# 仅引入 pitchfork 核心模块（非 Web）
+pitchfork-cli = { version = "1.6", default-features = false, features = ["supervisor", "daemon", "procs"] }
+
+# 独立实现 Web 层
+axum = { version = "0.7", features = ["ws"] }
+hyper = { version = "1.0", features = ["full"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["fs", "trace"] }
+```
+
+**相关设计文档**：详见 `docs/DESIGN_WEB_FRAMEWORK.md`
+
+### 1.3 核心功能
 
 | 功能 | 说明 |
 |------|------|

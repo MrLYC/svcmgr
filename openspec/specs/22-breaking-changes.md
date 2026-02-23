@@ -512,6 +512,89 @@ ports = { web = 9000 }
 - **05-web-service.md** §3 - HTTP 路由规则
 - **21-migration-guide.md** §3.3 - nginx 配置迁移
 
+### 3.4 ttyd 和 cloudflared 配置方式变更
+
+**变更**:ttyd 和 cloudflared 从独立配置段迁移到 mise 任务 + svcmgr 服务
+
+**严重程度**:**Major**
+
+#### 3.4.1 ttyd 配置变更
+
+**旧配置**(v1.x 独立模块):
+```bash
+svcmgr tty create --name bash --port 9001 --command bash
+svcmgr tty start bash
+```
+
+**新配置**(v2.0 mise 任务 + 服务):
+
+编辑 `~/.config/mise/config.toml`:
+```toml
+[tools]
+ttyd = "1.7.7"
+
+[tasks.tty-bash]
+run = "ttyd -p 9001 -t titleFixed='Bash' bash"
+```
+
+编辑 `~/.config/mise/svcmgr/config.toml`:
+```toml
+[services.tty-bash]
+task = "tty-bash"
+enable = true
+ports = { terminal = 9001 }
+
+[[http.routes]]
+path = "/tty/bash"
+target = "service:tty-bash:terminal"
+websocket = true
+```
+
+#### 3.4.2 cloudflared 配置变更
+
+**旧配置**(v1.x 独立原子模块):
+```toml
+[tunnel]
+id = "abc123"
+credentials_file = "/home/user/.cloudflared/abc123.json"
+
+[[tunnel.ingress]]
+hostname = "app.example.com"
+service = "http://localhost:3000"
+```
+
+**新配置**(v2.0 mise 任务 + 服务):
+
+编辑 `~/.config/mise/config.toml`:
+```toml
+[tools]
+cloudflared = "latest"
+
+[env]
+TUNNEL_ID = "abc123"
+TUNNEL_CREDENTIALS = "~/.cloudflared/abc123.json"
+
+[tasks.tunnel-run]
+run = "cloudflared tunnel run --config ${TUNNEL_CONFIG} ${TUNNEL_ID}"
+```
+
+编辑 `~/.config/mise/svcmgr/config.toml`:
+```toml
+[services.tunnel]
+task = "tunnel-run"
+enable = true
+restart = "always"
+```
+
+**迁移建议**:
+- 参考 **21-migration-guide.md** §7(ttyd 迁移)和 §8(cloudflared 迁移)
+- 使用自动化迁移工具(如果可用)
+- 测试 WebSocket 连接(ttyd)和隧道连接(cloudflared)
+
+**相关文档**:
+- **21-migration-guide.md** §7-8 - 详细迁移步骤
+- `docs/DESIGN_TTY_CLOUDFLARED.md` - 设计决策文档
+
 ---
 
 ## 4. CLI 命令变更
@@ -536,6 +619,10 @@ ports = { web = 9000 }
 | `crontab -r` | 删除 `.config/mise/svcmgr/config.toml` 中的 `[scheduled_tasks.*]` 段 | 删除所有定时任务 |
 | `nginx -s reload` | 无需操作（配置自动热更新） | 重载代理配置 |
 | `nginx -t` | `svcmgr config validate` | 验证配置 |
+| `svcmgr tty create <name>` | 配置 `.config/mise/config.toml` 添加任务 + 服务 | 创建 Web 终端 |
+| `svcmgr tty start <name>` | `svcmgr service start <name>` | 启动 Web 终端 |
+| `svcmgr tty stop <name>` | `svcmgr service stop <name>` | 停止 Web 终端 |
+| `svcmgr tty delete <name>` | 从配置文件删除任务和服务定义 | 删除 Web 终端 |
 
 **迁移建议**：
 - 更新所有脚本和文档中的命令引用
@@ -585,6 +672,7 @@ v2.0 新增以下管理命令：
 | 日志查看 | `journalctl --user -u <service>` | `svcmgr service logs <name>` | 输出格式变更（journalctl → 文件日志） |
 | 状态查询 | `systemctl --user status <service>` | `svcmgr service status <name>` | 输出格式变更（systemd 格式 → JSON） |
 | 配置重载 | `nginx -s reload` | 无需操作（自动热更新） | nginx 配置变更立即生效 |
+| `svcmgr tunnel *` | 管理独立原子模块 | 管理 mise 任务 + svcmgr 服务 | 命令行为变更,参数可能不兼容 |
 
 **输出格式对比**：
 
