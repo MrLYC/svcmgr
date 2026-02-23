@@ -95,6 +95,15 @@ pub struct ScheduledTask {
     /// Current consecutive failure count
     pub consecutive_failures: u32,
 
+    /// Task dependencies (tasks that must be satisfied before this task can run)
+    pub requires: Vec<String>,
+
+    /// Task ordering (tasks that should run before this task, but not required)
+    pub after: Vec<String>,
+
+    /// Conflicting tasks (tasks that cannot run simultaneously with this task)
+    pub conflicts: Vec<String>,
+
     /// Running process handle (if running)
     process: Option<ProcessHandle>,
 }
@@ -139,6 +148,9 @@ impl ScheduledTask {
             health_check_interval: Duration::from_secs(10),
             health_check_retries: 3,
             consecutive_failures: 0,
+            requires: Vec::new(),
+            after: Vec::new(),
+            conflicts: Vec::new(),
             process: None,
         }
     }
@@ -238,6 +250,9 @@ pub struct SchedulerEngine {
 
     /// Health check ticker (runs every 5 seconds)
     health_check_ticker: Interval,
+
+    /// Task dependency graph
+    dependency_graph: DependencyGraph,
 }
 
 impl SchedulerEngine {
@@ -272,6 +287,7 @@ impl SchedulerEngine {
             shutdown: false,
             health_checker,
             health_check_ticker,
+            dependency_graph: DependencyGraph::new(),
         }
     }
     /// Get command sender for external control
@@ -289,6 +305,37 @@ impl SchedulerEngine {
 
         // Insert task first
         self.tasks.insert(name.clone(), task);
+
+        // Populate dependency graph
+        let task_ref = self.tasks.get(&name).unwrap();
+
+        // Add node to dependency graph
+        self.dependency_graph.add_node(name.clone());
+
+        // Add Requires edges (hard dependencies)
+        for dep in &task_ref.requires {
+            self.dependency_graph
+                .add_edge(&name, dep, DependencyType::Requires)?;
+        }
+
+        // Add After edges (soft ordering)
+        for dep in &task_ref.after {
+            self.dependency_graph
+                .add_edge(&name, dep, DependencyType::After)?;
+        }
+
+        // Add Conflict edges (mutual exclusion)
+        for conflict in &task_ref.conflicts {
+            self.dependency_graph.add_conflict(&name, conflict)?;
+        }
+
+        // Detect circular dependencies after adding edges
+        if let Some(cycle) = self.dependency_graph.detect_cycles() {
+            return Err(anyhow!(
+                "Circular dependency detected: {}",
+                cycle.join(" -> ")
+            ));
+        }
 
         // Initialize cron trigger's next_tick
         if let Some(task) = self.tasks.get_mut(&name)

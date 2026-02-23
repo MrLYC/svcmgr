@@ -96,7 +96,7 @@ impl DependencyGraph {
 
         // Handle conflicts separately (bidirectional)
         if dep_type == DependencyType::Conflicts {
-            self.add_conflict(from, to);
+            self.add_conflict(from, to)?;
             return Ok(());
         }
 
@@ -106,15 +106,22 @@ impl DependencyGraph {
         Ok(())
     }
 
-    /// Add a mutual exclusion relationship (internal helper)
-    fn add_conflict(&mut self, task_a: &str, task_b: &str) {
+    /// Add a mutual exclusion relationship (bidirectional conflict)
+    pub fn add_conflict(&mut self, task_a: &str, task_b: &str) -> Result<()> {
+        // Ensure both tasks exist in the graph
+        if !self.node_map.contains_key(task_a) {
+            return Err(anyhow!("Task '{}' not found in dependency graph", task_a));
+        }
+        if !self.node_map.contains_key(task_b) {
+            return Err(anyhow!("Task '{}' not found in dependency graph", task_b));
+        }
         // Store both orderings to simplify lookup
         let pair1 = (task_a.to_string(), task_b.to_string());
         let pair2 = (task_b.to_string(), task_a.to_string());
         self.conflicts.insert(pair1);
         self.conflicts.insert(pair2);
+        Ok(())
     }
-
     /// Perform topological sort to determine task startup order
     ///
     /// # Returns
