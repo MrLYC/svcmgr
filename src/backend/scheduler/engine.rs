@@ -2,6 +2,7 @@
 //!
 //! Phase 2.1: Unified scheduler with multiple trigger types
 
+use super::dependencies::{DependencyGraph, DependencyType};
 use super::trigger::{EventType, RestartBackoff, RestartPolicy, RestartTracker, Trigger};
 use crate::runtime::ProcessHandle;
 use anyhow::{Context, Result, anyhow};
