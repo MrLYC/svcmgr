@@ -728,7 +728,7 @@ Feb 23 10:00:01 hostname node[12345]: Database connected
 
 **相关文档**：
 - **03-process-manager.md** §4 - 日志管理
-- **11-api-services.md** §3.3 - 日志查询 API
+- **11-api-services.md** - 日志查询 API（获取服务日志）
 
 ---
 
