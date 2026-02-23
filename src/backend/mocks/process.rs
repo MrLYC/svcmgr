@@ -344,9 +344,11 @@ mod tests {
             .unwrap();
 
         let history = manager.get_history();
-        assert!(history
-            .iter()
-            .any(|e| matches!(e, ProcessEvent::HealthCheckFailed { .. })));
+        assert!(
+            history
+                .iter()
+                .any(|e| matches!(e, ProcessEvent::HealthCheckFailed { .. }))
+        );
     }
 
     #[tokio::test]

@@ -1,0 +1,3 @@
+[build]
+# 限制并行任务数,避免内存压力导致 LLVM panic
+jobs = 1

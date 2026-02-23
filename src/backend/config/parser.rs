@@ -225,10 +225,12 @@ mod tests {
         let result = parser.load();
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Failed to parse config"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Failed to parse config")
+        );
     }
 
     #[test]
@@ -248,10 +250,12 @@ mod tests {
 
         let result = parser.load_and_validate(&mise_config);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("non-existent mise task"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("non-existent mise task")
+        );
     }
 
     #[test]

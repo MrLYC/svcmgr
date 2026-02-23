@@ -4,13 +4,13 @@
 
 use super::trigger::{EventType, RestartBackoff, RestartPolicy, RestartTracker, Trigger};
 use crate::runtime::ProcessHandle;
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use chrono::Local;
 use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 use tokio::sync::{broadcast, mpsc};
-use tokio::time::{interval_at, sleep, Interval};
+use tokio::time::{Interval, interval_at, sleep};
 
 /// Task execution method
 #[derive(Debug, Clone)]
