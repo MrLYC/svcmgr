@@ -32,6 +32,10 @@ pub struct SvcmgrConfig {
     /// Credential definitions (for HTTP proxy auth)
     #[serde(default)]
     pub credentials: HashMap<String, CredentialConfig>,
+
+    /// HTTP server and proxy configuration
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub http: Option<HttpConfig>,
 }
 
 // ============================================================================
@@ -295,6 +299,102 @@ pub enum CredentialConfig {
     },
 }
 
+// ============================================================================
+// HTTP Configuration
+// ============================================================================
+
+/// HTTP server and reverse proxy configuration
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+pub struct HttpConfig {
+    /// HTTP bind address
+    #[serde(default = "default_http_bind")]
+    pub bind: String,
+
+    /// HTTP port
+    #[serde(default = "default_http_port")]
+    pub port: u16,
+
+    /// HTTPS bind address (optional)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub https_bind: Option<String>,
+
+    /// HTTPS port (optional)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub https_port: Option<u16>,
+
+    /// TLS configuration (for HTTPS)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tls: Option<TlsConfig>,
+
+    /// Reverse proxy routes
+    #[serde(default)]
+    pub routes: Vec<RouteConfig>,
+}
+
+fn default_http_bind() -> String {
+    "127.0.0.1".to_string()
+}
+
+fn default_http_port() -> u16 {
+    8080
+}
+
+/// TLS configuration for HTTPS
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+pub struct TlsConfig {
+    /// Path to certificate file (PEM format)
+    pub cert: PathBuf,
+
+    /// Path to private key file (PEM format)
+    pub key: PathBuf,
+
+    /// Automatically redirect HTTP to HTTPS
+    #[serde(default)]
+    pub redirect_http: bool,
+}
+
+/// Reverse proxy route configuration
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+pub struct RouteConfig {
+    /// Route name (for identification)
+    pub name: String,
+
+    /// Host matching pattern (e.g., "api.example.com")
+    /// If specified, route matches on Host header
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub host: Option<String>,
+
+    /// Path prefix matching pattern (e.g., "/api")
+    /// Supports wildcards: /api/* matches /api/foo, /api/bar
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+
+    /// Backend service reference (format: "service_name:port_name")
+    /// Mutually exclusive with serve_dir
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub backend: Option<String>,
+
+    /// Static file directory to serve
+    /// Mutually exclusive with backend
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub serve_dir: Option<PathBuf>,
+
+    /// Directory index file (default: index.html)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub index: Option<String>,
+
+    /// Strip matched path prefix before forwarding
+    #[serde(default)]
+    pub strip_prefix: bool,
+
+    /// Authentication credential name (references credentials table)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth: Option<String>,
+
+    /// Enable WebSocket support for this route
+    #[serde(default)]
+    pub websocket: bool,
+}
 // ============================================================================
 // MiseConfig - Parsed from mise configuration files
 // ============================================================================
