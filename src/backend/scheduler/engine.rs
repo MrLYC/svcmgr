@@ -7,7 +7,7 @@ use super::trigger::{EventType, RestartBackoff, RestartPolicy, RestartTracker, T
 use crate::runtime::ProcessHandle;
 use anyhow::{Context, Result, anyhow};
 use chrono::Local;
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 use tokio::sync::{broadcast, mpsc};
@@ -605,22 +605,35 @@ impl SchedulerEngine {
 
     /// Spawn a task (execute it)
     async fn spawn_task(&mut self, task_name: &str) -> Result<()> {
+        // Collect currently running tasks (before taking mutable borrow)
+        let running_tasks: HashSet<String> = self
+            .tasks
+            .iter()
+            .filter_map(|(name, task)| {
+                if matches!(task.state, TaskState::Running { .. }) {
+                    Some(name.clone())
+                } else {
+                    None
+                }
+            })
+            .collect();
+        self.dependency_graph
+            .check_conflicts(task_name, &running_tasks)?;
+        self.dependency_graph
+            .check_dependencies_satisfied(task_name, &running_tasks)?;
+        // Now get mutable reference to the task
         let task = self
             .tasks
             .get_mut(task_name)
             .ok_or_else(|| anyhow!("Task '{}' not found", task_name))?;
-
-        // Skip if already running
         if matches!(task.state, TaskState::Running { .. }) {
             return Ok(());
         }
-
         // Skip if in fatal state (requires manual intervention)
         if matches!(task.state, TaskState::Fatal { .. }) {
             tracing::warn!("Task '{}' in FATAL state, skipping", task_name);
             return Ok(());
         }
-
         tracing::info!("Spawning task '{}'", task_name);
 
         // Extract command from execution
