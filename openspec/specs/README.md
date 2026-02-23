@@ -1,148 +1,72 @@
-# OpenSpec 规格文档索引
+# svcmgr Specifications (基于 mise 重新设计)
 
-> svcmgr - Linux 服务管理工具
+> 版本：2.0.0-draft
+> 基于：MISE_REDESIGN_RESEARCH_ZH.md
 
-## 📋 规格文档清单
+## 文档结构
 
-### 架构与总览
-- [00-architecture-overview.md](./00-architecture-overview.md) - 架构总览、设计原则、技术原子与功能清单
+### 00-09: 架构与核心组件
 
-### 技术原子规格（9个）
+- **00-architecture-overview.md** - 整体架构概览
+- **01-config-design.md** - 配置文件设计（svcmgr.toml + mise.toml）
+- **02-scheduler-engine.md** - 多任务调度引擎设计
+- **03-process-manager.md** - 子进程管理与资源限制
+- **04-git-versioning.md** - Git 配置版本管理
+- **05-web-service.md** - Web 服务与内置反向代理
+- **06-feature-flags.md** - 功能开关机制
+- **07-mise-integration.md** - mise 集成层（Port-Adapter 模式）
 
-#### 基础能力
-- [01-atom-git.md](./01-atom-git.md) - **T01: Git 版本管理** - 配置文件版本控制
-- [02-atom-template.md](./02-atom-template.md) - **T02: 模板管理** - Jinja2 模板渲染
+### 10-19: API 设计
 
-#### 核心工具集成
-- [03-atom-mise.md](./03-atom-mise.md) - **T03-T05: Mise 原子** - 依赖管理、全局任务、环境变量
-- [04-atom-systemd.md](./04-atom-systemd.md) - **T06: Systemd 服务管理** - 用户级服务、日志、临时任务
-- [05-atom-crontab.md](./05-atom-crontab.md) - **T07: Crontab 周期任务** - 定时任务管理
-- [06-atom-tunnel.md](./06-atom-tunnel.md) - **T08: Cloudflare 隧道** - 安全隧道管理
-- [07-atom-proxy.md](./07-atom-proxy.md) - **T09: Nginx 代理** - HTTP/TCP 代理、静态文件
+- **10-api-overview.md** - API 设计总览
+- **11-api-services.md** - 服务管理 API
+- **12-api-tasks.md** - 任务管理 API
+- **13-api-tools.md** - 工具管理 API（mise tools）
+- **14-api-config.md** - 配置管理 API
+- **15-api-env.md** - 环境变量 API
 
-### 功能组合规格（7个）
+### 20-29: 实施与迁移
 
-#### 已完成
-- [16-feature-webtty.md](./16-feature-webtty.md) - **F07: Web TTY** - 浏览器终端（组合 T02/T04/T06/T09）
+- **20-implementation-phases.md** - 实施路径（分阶段）
+- **21-migration-guide.md** - 从旧架构迁移指南
+- **22-breaking-changes.md** - 破坏性变更清单
 
-#### 待完成
-- `10-feature-systemd.md` - **F01: Systemd 服务管理** - 组合 T02/T06/T07
-- `11-feature-crontab.md` - **F02: Crontab 任务管理** - 组合 T02/T07
-- `12-feature-mise.md` - **F03: Mise 依赖管理** - 组合 T02/T03/T04/T05
-- `13-feature-nginx.md` - **F04: Nginx 代理管理** - 组合 T02/T09
-- `14-feature-tunnel.md` - **F05: Cloudflare 隧道管理** - 组合 T02/T08
-- `15-feature-config.md` - **F06: 配置文件管理** - 组合 T01
+## 核心设计原则
 
-### CLI 接口
-- [20-cli-interface.md](./20-cli-interface.md) - **CLI 命令规格** - 完整命令行接口定义
+1. **配置文件驱动**：所有行为由 TOML 配置文件定义
+2. **mise 作为基础设施**：依赖安装、环境变量、任务定义通过 mise 实现
+3. **配置分离**：svcmgr 配置独立于 mise 配置，避免冲突
+4. **Git 版本化**：配置变更通过 Git 暂存/提交/回滚管理
+5. **事件驱动**：系统生命周期和任务状态通过事件总线通知
+6. **功能开关**：核心功能可通过配置或环境变量开关控制
 
-### 前端界面
-- [30-frontend-ui.md](./30-frontend-ui.md) - **Web UI 规格** - 前端管理界面设计与交互
-
----
-
-## 🎯 实现优先级
-
-### Phase 1: 核心基础设施
-1. **T01: Git 版本管理** - 配置持久化基础
-2. **T02: 模板管理** - 配置生成基础
-3. **T06: Systemd 服务管理** - 服务运行基础
-4. **T09: Nginx 代理** - 统一入口基础
-
-### Phase 2: 扩展能力
-5. **T03-T05: Mise 原子** - 工具和任务管理
-6. **T07: Crontab 周期任务** - 定时任务支持
-7. **F07: Web TTY** - 第一个完整功能验证
-
-### Phase 3: 高级特性
-8. **T08: Cloudflare 隧道** - 外部访问能力
-9. **F01-F06: 其他功能组合** - 完整业务功能
-
-### Phase 4: Web UI
-10. **F08: Web 管理界面** - Vue 3 + TypeScript SPA
-
-### Phase 5: 完善与优化
-11. CLI 完善、错误处理、测试覆盖
-12. 文档和部署工具
-
----
-
-## 📐 设计原则验证
-
-### ✅ 技术原子正交性
-- 每个原子独立实现单一技术领域
-- 原子之间无直接依赖
-- 功能通过组合实现
-
-### ✅ 配置即代码
-- 所有配置文件 Git 版本控制
-- 模板化配置生成
-- 可追溯的变更历史
-
-### ✅ 用户级部署
-- 无需 root 权限
-- 使用 `systemd --user`
-- 非特权端口（>1024）
-- XDG 目录规范
-
-### ✅ 统一入口
-- Nginx 统一 HTTP 入口
-- 路径规则清晰一致
-- WebSocket 支持
-
----
-
-## 🔗 依赖关系图
+## 配置文件层级
 
 ```
-┌─────────────────────────────────────────┐
-│          CLI Interface (20)              │
-└─────────────────────────────────────────┘
-                    │
-        ┌───────────┴───────────┐
-        │                       │
-┌───────▼────────┐    ┌─────────▼──────┐
-│   Features     │    │   Atoms        │
-│   (F01-F07)    │◄───┤   (T01-T09)    │
-│   10-16        │    │   01-07        │
-└────────────────┘    └────────────────┘
-
-功能依赖示例：
-F07 (Web TTY) → T02, T04, T06, T09
-F01 (Systemd) → T02, T06, T07
-F06 (Config)  → T01
+.config/mise/                          # mise 配置目录
+├── config.toml                        # mise 配置（tools, env, tasks）
+├── conf.d/                            # mise 场景配置
+│   └── *.toml
+└── svcmgr/                            # svcmgr 配置（独立）
+    ├── config.toml                    # svcmgr 核心配置
+    └── conf.d/                        # svcmgr 场景配置
+        └── *.toml
 ```
 
----
+## 技术栈变更
 
-## 📝 文档规范
+| 组件 | 当前实现 | 新设计 |
+|------|----------|--------|
+| 依赖管理 | mise CLI 封装 | 配置文件驱动 + Port-Adapter |
+| 任务定义 | mise CLI 封装 | 解析 mise [tasks] + 直接 spawn |
+| 服务管理 | supervisor.rs | 调度引擎 + pitchfork 库内嵌 |
+| 定时任务 | scheduler.rs | 调度引擎 + Cron 触发器 |
+| 反向代理 | nginx 管理 | 内置 HTTP 代理（axum/hyper）|
+| 资源限制 | 无 | cgroups v2（功能开关可关闭）|
+| 配置管理 | 独立 TOML | Git 版本化 + svcmgr 独立配置 |
 
-所有规格文档遵循 **OpenSpec 中文版格式**：
+## 参考资料
 
-1. **Delta 分区**：ADDED / MODIFIED / REMOVED Requirements
-2. **Requirement 语句**：系统 MUST/SHALL/SHOULD + 功能描述
-3. **Scenario 场景**：WHEN / THEN / AND 描述行为
-4. **接口定义**：Rust trait/struct 定义
-5. **配置示例**：TOML 格式配置
-
----
-
-## 🚀 下一步行动
-
-1. **完成剩余功能规格**（F01-F06）
-2. **初始化 Rust 项目结构**
-3. **实现 Phase 1 核心原子**
-4. **编写单元测试和集成测试**
-5. **实现 CLI 框架**
-
----
-
-## 📞 联系与反馈
-
-规格文档持续演进中，欢迎反馈和建议。
-
----
-
-**生成时间**: 2026-02-21  
-**版本**: 1.0.0  
-**状态**: 进行中（技术原子和 F07 已完成，F01-F06 待完成）
+- [MISE_REDESIGN_RESEARCH_ZH.md](../../MISE_REDESIGN_RESEARCH_ZH.md) - 完整设计文档
+- [mise 官方文档](https://mise.jdx.dev)
+- [pitchfork 参考](https://pitchfork.jdx.dev)
