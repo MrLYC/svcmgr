@@ -1,3 +1,5 @@
+use crate::git::versioning::GitVersioning;
+use crate::ports::mise_port::ConfigPort;
 use axum::{
     Json, Router,
     extract::Request,
@@ -6,7 +8,7 @@ use axum::{
     routing::get,
 };
 use serde::{Deserialize, Serialize};
-use std::{net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, path::PathBuf, sync::Arc};
 use tower_http::{
     cors::CorsLayer,
     trace::{DefaultMakeSpan, TraceLayer},
@@ -38,6 +40,65 @@ impl Default for HttpConfig {
         Self {
             bind: default_bind(),
             port: default_port(),
+        }
+    }
+}
+
+/// 全局应用状态(用于依赖注入)
+#[derive(Clone)]
+pub struct AppState {
+    /// Git 版本控制
+    pub git_versioning: Arc<tokio::sync::Mutex<GitVersioning>>,
+    /// 配置端口(用于读写配置文件)
+    pub config_port: Arc<dyn ConfigPort>,
+    /// 配置文件根目录
+    pub config_dir: PathBuf,
+}
+
+impl AppState {
+    /// 创建新的应用状态
+    pub fn new(
+        git_versioning: GitVersioning,
+        config_port: Arc<dyn ConfigPort>,
+        config_dir: PathBuf,
+    ) -> Self {
+        Self {
+            git_versioning: Arc::new(tokio::sync::Mutex::new(git_versioning)),
+            config_port,
+            config_dir,
+        }
+    }
+
+    /// 创建用于开发/测试的默认状态(使用mock adapter)
+    ///
+    /// 注意: 此方法使用 MockMiseAdapter 和临时 Git 仓库,
+    /// 仅用于开发和测试环境。生产代码应使用 AppState::new()
+    /// 并传入真实的依赖项。
+    pub fn for_development() -> Self {
+        use crate::adapters::mock::MockMiseAdapter;
+        use tempfile::TempDir;
+
+        // 创建临时目录用于Git
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        let config_dir = temp_dir.path().to_path_buf();
+
+        // 初始化Git仓库
+        let git = GitVersioning::init(&config_dir).expect("Failed to init git");
+
+        // 创建 mock adapter (使用 MiseMock + MiseVersion)
+        use crate::mocks::mise::MiseMock;
+        use crate::ports::MiseVersion;
+        let mock = MiseMock::new(config_dir.clone());
+        let version = MiseVersion::new(2026, 2, 17); // 模拟最新版本
+        let config_port: Arc<dyn ConfigPort> = Arc::new(MockMiseAdapter::new(mock, version));
+
+        // 注意:temp_dir会在这里被drop,但git仓库已初始化,测试期间目录仍然存在
+        std::mem::forget(temp_dir); // 防止提前删除
+
+        Self {
+            git_versioning: Arc::new(tokio::sync::Mutex::new(git)),
+            config_port,
+            config_dir,
         }
     }
 }
@@ -167,7 +228,9 @@ pub struct HttpServer {
 impl HttpServer {
     /// 创建新的 HTTP 服务器实例
     pub fn new(config: HttpConfig) -> Self {
-        let router = Self::build_router();
+        // 创建测试用的 AppState (实际生产环境应传入真实依赖)
+        let app_state = AppState::for_development();
+        let router = Self::build_router(app_state);
         Self {
             config,
             router,
@@ -177,9 +240,10 @@ impl HttpServer {
 
     /// 创建带代理服务的 HTTP 服务器
     pub fn with_proxy(config: HttpConfig, routes: Vec<crate::config::models::RouteConfig>) -> Self {
-        let router = Self::build_router();
+        // 创建测试用的 AppState (实际生产环境应传入真实依赖)
+        let app_state = AppState::for_development();
+        let router = Self::build_router(app_state);
         let proxy = Arc::new(crate::web::proxy::ProxyService::new(routes));
-
         Self {
             config,
             router,
@@ -209,12 +273,12 @@ impl HttpServer {
     }
 
     /// 构建路由
-    fn build_router() -> Router {
+    fn build_router(app_state: AppState) -> Router {
         Router::new()
             // 健康检查端点
             .route("/health", get(health_check))
-            // API v1 路由
-            .nest("/api/v1", crate::web::api::api_routes())
+            // API v1 路由 (注入 AppState)
+            .nest("/api/v1", crate::web::api::api_routes(app_state))
             // 配置中间件
             .layer(
                 TraceLayer::new_for_http()

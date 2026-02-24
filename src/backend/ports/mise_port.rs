@@ -185,6 +185,23 @@ pub trait ConfigPort: Send + Sync {
 
     /// 写入配置文件 (仅写 mise 原生段)
     async fn write_config(&self, path: &Path, value: &toml::Value) -> Result<()>;
+
+    async fn get_global_env_var(&self, key: &str) -> Result<Option<String>>;
+
+    async fn get_service_env_var(&self, service_name: &str, key: &str) -> Result<Option<String>>;
+
+    async fn get_task_env_var(&self, task_name: &str, key: &str) -> Result<Option<String>>;
+
+    async fn get_global_env(&self) -> Result<HashMap<String, String>>;
+
+    async fn get_service_envs(&self) -> Result<HashMap<String, HashMap<String, String>>>;
+
+    async fn get_task_envs(&self) -> Result<HashMap<String, HashMap<String, String>>>;
+
+    async fn set_env_var(&self, key: &str, value: &str, scope: &crate::env::EnvScope)
+    -> Result<()>;
+
+    async fn delete_env_var(&self, key: &str, scope: &crate::env::EnvScope) -> Result<()>;
 }
 
 // ============================================================================

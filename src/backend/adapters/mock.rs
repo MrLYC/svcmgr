@@ -17,6 +17,15 @@ pub struct MockMiseAdapter {
     version: MiseVersion,
 }
 
+impl Clone for MockMiseAdapter {
+    fn clone(&self) -> Self {
+        Self {
+            mock: Arc::clone(&self.mock),
+            version: self.version.clone(),
+        }
+    }
+}
+
 impl MockMiseAdapter {
     /// Create a new MockMiseAdapter wrapping the given MiseMock
     pub fn new(mock: MiseMock, version: MiseVersion) -> Self {
@@ -246,6 +255,107 @@ impl ConfigPort for MockMiseAdapter {
             }
         }
 
+        Ok(())
+    }
+
+    async fn get_global_env_var(&self, key: &str) -> Result<Option<String>> {
+        let mock = self.mock.lock().unwrap();
+        Ok(mock.env.get(key).cloned())
+    }
+
+    async fn get_service_env_var(&self, service_name: &str, key: &str) -> Result<Option<String>> {
+        let mock = self.mock.lock().unwrap();
+        Ok(mock
+            .service_envs
+            .get(service_name)
+            .and_then(|env| env.get(key).cloned()))
+    }
+
+    async fn get_task_env_var(&self, task_name: &str, key: &str) -> Result<Option<String>> {
+        let mock = self.mock.lock().unwrap();
+        Ok(mock
+            .tasks
+            .get(task_name)
+            .and_then(|task| task.env.get(key).cloned()))
+    }
+
+    async fn get_global_env(&self) -> Result<HashMap<String, String>> {
+        let mock = self.mock.lock().unwrap();
+        Ok(mock.env.clone())
+    }
+
+    async fn get_service_envs(&self) -> Result<HashMap<String, HashMap<String, String>>> {
+        let mock = self.mock.lock().unwrap();
+        Ok(mock.service_envs.clone())
+    }
+
+    async fn get_task_envs(&self) -> Result<HashMap<String, HashMap<String, String>>> {
+        let mock = self.mock.lock().unwrap();
+        let task_envs = mock
+            .tasks
+            .iter()
+            .map(|(name, task)| (name.clone(), task.env.clone()))
+            .collect();
+        Ok(task_envs)
+    }
+
+    async fn set_env_var(
+        &self,
+        key: &str,
+        value: &str,
+        scope: &crate::env::EnvScope,
+    ) -> Result<()> {
+        use crate::env::EnvScope;
+        let mut mock = self.mock.lock().unwrap();
+
+        match scope {
+            EnvScope::Global => {
+                mock.env.insert(key.to_string(), value.to_string());
+            }
+            EnvScope::Service { name } => {
+                mock.service_envs
+                    .entry(name.clone())
+                    .or_default()
+                    .insert(key.to_string(), value.to_string());
+            }
+            EnvScope::Task { name } => {
+                // Auto-create task if not exists
+                let task = mock.tasks.entry(name.clone()).or_insert_with(|| {
+                    use crate::mocks::mise::TaskDef;
+                    TaskDef {
+                        run: "".to_string(),
+                        env: HashMap::new(),
+                        depends: vec![],
+                        description: None,
+                    }
+                });
+                task.env.insert(key.to_string(), value.to_string());
+            }
+        }
+        Ok(())
+    }
+
+    async fn delete_env_var(&self, key: &str, scope: &crate::env::EnvScope) -> Result<()> {
+        use crate::env::EnvScope;
+        let mut mock = self.mock.lock().unwrap();
+
+        match scope {
+            EnvScope::Global => {
+                mock.env.remove(key);
+            }
+            EnvScope::Service { name } => {
+                if let Some(service_env) = mock.service_envs.get_mut(name) {
+                    service_env.remove(key);
+                }
+                // Idempotent - no error if service or key doesn't exist
+            }
+            EnvScope::Task { name } => {
+                if let Some(task) = mock.tasks.get_mut(name) {
+                    task.env.remove(key);
+                }
+                // Idempotent - no error if task doesn't exist
+            }
+        }
         Ok(())
     }
 }

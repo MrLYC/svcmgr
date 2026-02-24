@@ -335,8 +335,232 @@ impl ConfigPort for MiseV2026Adapter {
 
         Ok(())
     }
-}
 
+    async fn get_global_env_var(&self, _key: &str) -> Result<Option<String>> {
+        Ok(None)
+    }
+
+    async fn get_service_env_var(&self, _service_name: &str, _key: &str) -> Result<Option<String>> {
+        Ok(None)
+    }
+
+    async fn get_task_env_var(&self, _task_name: &str, _key: &str) -> Result<Option<String>> {
+        Ok(None)
+    }
+
+    async fn get_global_env(&self) -> Result<HashMap<String, String>> {
+        let home = dirs::home_dir().context("Cannot determine home directory")?;
+        let config_path = home.join(".config/mise/config.toml");
+
+        if !config_path.exists() {
+            return Ok(HashMap::new());
+        }
+
+        let toml_value = self.read_config(&config_path).await?;
+
+        // 读取 [env] 段落
+        let env = toml_value
+            .get("env")
+            .and_then(|v| v.as_table())
+            .map(|table| {
+                table
+                    .iter()
+                    .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        Ok(env)
+    }
+    async fn get_service_envs(&self) -> Result<HashMap<String, HashMap<String, String>>> {
+        let home = dirs::home_dir().context("Cannot determine home directory")?;
+        let config_path = home.join(".config/mise/svcmgr/config.toml");
+
+        if !config_path.exists() {
+            return Ok(HashMap::new());
+        }
+
+        let toml_value = self.read_config(&config_path).await?;
+
+        // 读取 [services] 段落
+        let services = toml_value
+            .get("services")
+            .and_then(|v| v.as_table())
+            .map(|services_table| {
+                services_table
+                    .iter()
+                    .filter_map(|(service_name, service_config)| {
+                        service_config
+                            .get("env")
+                            .and_then(|v| v.as_table())
+                            .map(|env_table| {
+                                let env: HashMap<String, String> = env_table
+                                    .iter()
+                                    .filter_map(|(k, v)| {
+                                        v.as_str().map(|s| (k.clone(), s.to_string()))
+                                    })
+                                    .collect();
+                                (service_name.clone(), env)
+                            })
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        Ok(services)
+    }
+    async fn get_task_envs(&self) -> Result<HashMap<String, HashMap<String, String>>> {
+        let home = dirs::home_dir().context("Cannot determine home directory")?;
+        let config_path = home.join(".config/mise/config.toml");
+
+        if !config_path.exists() {
+            return Ok(HashMap::new());
+        }
+
+        let toml_value = self.read_config(&config_path).await?;
+
+        // 读取 [tasks] 段落
+        let tasks = toml_value
+            .get("tasks")
+            .and_then(|v| v.as_table())
+            .map(|tasks_table| {
+                tasks_table
+                    .iter()
+                    .filter_map(|(task_name, task_config)| {
+                        task_config
+                            .get("env")
+                            .and_then(|v| v.as_table())
+                            .map(|env_table| {
+                                let env: HashMap<String, String> = env_table
+                                    .iter()
+                                    .filter_map(|(k, v)| {
+                                        v.as_str().map(|s| (k.clone(), s.to_string()))
+                                    })
+                                    .collect();
+                                (task_name.clone(), env)
+                            })
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        Ok(tasks)
+    }
+
+    async fn set_env_var(
+        &self,
+        key: &str,
+        value: &str,
+        scope: &crate::env::EnvScope,
+    ) -> Result<()> {
+        use crate::env::EnvScope;
+
+        let home = dirs::home_dir().context("Cannot determine home directory")?;
+
+        // 根据scope确定配置文件路径和段落
+        let (config_path, section_path) = match scope {
+            EnvScope::Global => (
+                home.join(".config/mise/config.toml"),
+                vec!["env".to_string()],
+            ),
+            EnvScope::Service { name } => (
+                home.join(".config/mise/svcmgr/config.toml"),
+                vec!["services".to_string(), name.clone(), "env".to_string()],
+            ),
+            EnvScope::Task { name } => (
+                home.join(".config/mise/config.toml"),
+                vec!["tasks".to_string(), name.clone(), "env".to_string()],
+            ),
+        };
+
+        // 确保配置文件目录存在
+        if let Some(parent) = config_path.parent() {
+            tokio::fs::create_dir_all(parent)
+                .await
+                .with_context(|| format!("Failed to create config dir: {}", parent.display()))?;
+        }
+
+        // 读取或创建空配置
+        let mut toml_value = if config_path.exists() {
+            self.read_config(&config_path).await?
+        } else {
+            toml::Value::Table(toml::map::Map::new())
+        };
+
+        // 导航到目标段落,创建缺失的中间段落
+        let mut current = &mut toml_value;
+        for section in &section_path {
+            current = current
+                .as_table_mut()
+                .ok_or_else(|| anyhow::anyhow!("Expected table at section: {}", section))?
+                .entry(section.clone())
+                .or_insert_with(|| toml::Value::Table(toml::map::Map::new()));
+        }
+
+        // 设置环境变量
+        current
+            .as_table_mut()
+            .ok_or_else(|| anyhow::anyhow!("Expected table for env section"))?
+            .insert(key.to_string(), toml::Value::String(value.to_string()));
+
+        // 写回文件
+        self.write_config(&config_path, &toml_value).await?;
+
+        Ok(())
+    }
+
+    async fn delete_env_var(&self, key: &str, scope: &crate::env::EnvScope) -> Result<()> {
+        use crate::env::EnvScope;
+
+        let home = dirs::home_dir().context("Cannot determine home directory")?;
+
+        // 根据scope确定配置文件路径和段落
+        let (config_path, section_path) = match scope {
+            EnvScope::Global => (
+                home.join(".config/mise/config.toml"),
+                vec!["env".to_string()],
+            ),
+            EnvScope::Service { name } => (
+                home.join(".config/mise/svcmgr/config.toml"),
+                vec!["services".to_string(), name.clone(), "env".to_string()],
+            ),
+            EnvScope::Task { name } => (
+                home.join(".config/mise/config.toml"),
+                vec!["tasks".to_string(), name.clone(), "env".to_string()],
+            ),
+        };
+
+        if !config_path.exists() {
+            // 配置文件不存在,视为删除成功(幂等性)
+            return Ok(());
+        }
+
+        // 读取配置
+        let mut toml_value = self.read_config(&config_path).await?;
+
+        // 导航到目标段落
+        let mut current = &mut toml_value;
+        for section in &section_path {
+            match current.get_mut(section) {
+                Some(v) => current = v,
+                None => {
+                    // 段落不存在,视为删除成功(幂等性)
+                    return Ok(());
+                }
+            }
+        }
+
+        // 删除环境变量
+        if let Some(table) = current.as_table_mut() {
+            table.remove(key);
+        }
+
+        // 写回文件
+        self.write_config(&config_path, &toml_value).await?;
+
+        Ok(())
+    }
+}
 /// Implement MiseAdapter marker trait (combines all 4 port traits)
 impl super::MiseAdapter for MiseV2026Adapter {}
 

@@ -6,7 +6,7 @@
 // 3. 错误处理正确（404, 500, 400 等）
 // 4. HTTP 状态码映射正确
 
-use svcmgr::web::server::{ApiError, HttpConfig, HttpServer};
+use svcmgr::web::server::{HttpConfig, HttpServer};
 use tokio::net::TcpListener;
 
 /// 辅助函数：创建测试服务器并返回基础 URL

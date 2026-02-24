@@ -36,6 +36,8 @@ pub struct MiseMock {
     pub tasks: HashMap<String, TaskDef>,
     /// 工作目录（用于生成 .mise.toml）
     pub workdir: PathBuf,
+    /// 服务名称 -> 服务环境变量映射
+    pub service_envs: HashMap<String, HashMap<String, String>>,
 }
 
 impl MiseMock {
@@ -46,6 +48,7 @@ impl MiseMock {
             env: HashMap::new(),
             tasks: HashMap::new(),
             workdir,
+            service_envs: HashMap::new(),
         }
     }
 
