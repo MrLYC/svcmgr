@@ -4,13 +4,14 @@
 
 use super::dependencies::{DependencyGraph, DependencyType};
 use super::trigger::{EventType, RestartBackoff, RestartPolicy, RestartTracker, Trigger};
+use crate::events::EventBus;
 use crate::runtime::ProcessHandle;
 use anyhow::{Context, Result, anyhow};
 use chrono::Local;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
-use tokio::sync::{broadcast, mpsc};
+use tokio::sync::mpsc;
 use tokio::time::{Interval, interval_at, sleep};
 
 /// Task execution method
@@ -176,35 +177,6 @@ impl ScheduledTask {
 
 /// Event bus for cross-task communication
 #[derive(Clone)]
-pub struct EventBus {
-    tx: broadcast::Sender<EventType>,
-}
-
-impl EventBus {
-    pub fn new() -> Self {
-        let (tx, _rx) = broadcast::channel(1024);
-        Self { tx }
-    }
-
-    /// Emit an event
-    pub fn emit(&self, event: EventType) -> Result<()> {
-        self.tx
-            .send(event)
-            .map_err(|e| anyhow!("Failed to emit event: {}", e))?;
-        Ok(())
-    }
-
-    /// Subscribe to events
-    pub fn subscribe(&self) -> broadcast::Receiver<EventType> {
-        self.tx.subscribe()
-    }
-}
-
-impl Default for EventBus {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 
 /// Command from external API/CLI to scheduler
 #[derive(Debug)]

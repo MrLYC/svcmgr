@@ -7,6 +7,4 @@ pub mod engine;
 pub mod trigger;
 
 pub use dependencies::{DependencyGraph, DependencyType};
-pub use engine::{
-    EventBus, Execution, ScheduledTask, SchedulerCommand, SchedulerEngine, TaskState,
-};
+pub use engine::{Execution, ScheduledTask, SchedulerCommand, SchedulerEngine, TaskState};
