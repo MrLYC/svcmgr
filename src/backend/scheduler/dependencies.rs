@@ -81,8 +81,14 @@ impl DependencyGraph {
     ///
     /// # Example
     /// ```
+    /// use svcmgr::scheduler::dependencies::{DependencyGraph, DependencyType};
+    /// # use anyhow::Result;
+    /// # fn main() -> Result<()> {
+    /// let mut graph = DependencyGraph::new();
     /// // "webapp" requires "database" to be running first
     /// graph.add_edge("webapp", "database", DependencyType::Requires)?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn add_edge(&mut self, from: &str, to: &str, dep_type: DependencyType) -> Result<()> {
         // Ensure both nodes exist (create if needed - allows adding dependencies before target task is registered)
@@ -206,8 +212,15 @@ impl DependencyGraph {
     ///
     /// # Example
     /// ```
-    /// let running = ["prod-server"].iter().map(|s| s.to_string()).collect();
+    /// use svcmgr::scheduler::dependencies::DependencyGraph;
+    /// use std::collections::HashSet;
+    /// # use anyhow::Result;
+    /// # fn main() -> Result<()> {
+    /// let graph = DependencyGraph::new();
+    /// let running: HashSet<String> = ["prod-server"].iter().map(|s| s.to_string()).collect();
     /// graph.check_conflicts("dev-server", &running)?; // May fail if they conflict
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn check_conflicts(&self, task: &str, running_tasks: &HashSet<String>) -> Result<()> {
         for running_task in running_tasks {
