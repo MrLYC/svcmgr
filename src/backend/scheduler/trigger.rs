@@ -2,6 +2,7 @@
 //!
 //! Phase 2.1: Unified scheduler engine core
 
+use anyhow::{Result, anyhow};
 use chrono::{DateTime, Local};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
@@ -223,7 +224,7 @@ impl Trigger {
     }
 
     /// Compute next execution time for Cron triggers
-    pub fn compute_next_tick(&mut self) -> Option<DateTime<Local>> {
+    pub fn compute_next_tick(&mut self) -> Result<Option<DateTime<Local>>> {
         if let Trigger::Cron {
             expression,
             next_tick,
@@ -232,14 +233,14 @@ impl Trigger {
             use cron::Schedule;
             use std::str::FromStr;
 
-            if let Ok(schedule) = Schedule::from_str(expression) {
-                let now = Local::now();
-                let next = schedule.after(&now).next();
-                *next_tick = next;
-                return next;
-            }
+            let schedule = Schedule::from_str(expression)
+                .map_err(|e| anyhow!("Invalid cron expression '{}': {}", expression, e))?;
+            let now = Local::now();
+            let next = schedule.after(&now).next();
+            *next_tick = next;
+            return Ok(next);
         }
-        None
+        Ok(None)
     }
 }
 
@@ -315,7 +316,7 @@ mod tests {
             next_tick: None,
         };
 
-        let next = trigger.compute_next_tick();
+        let next = trigger.compute_next_tick().unwrap();
         assert!(next.is_some());
 
         // Next tick should be in the future

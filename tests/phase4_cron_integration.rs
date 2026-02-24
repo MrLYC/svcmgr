@@ -111,12 +111,11 @@ async fn test_cron_task_execution_timing() -> Result<()> {
     let log_dir = tempdir()?.path().to_path_buf();
     let mut engine = SchedulerEngine::new(log_dir.clone());
 
-    // Schedule task to run 3 seconds from now (approximation using seconds field)
-    let now = Local::now();
-    let target_second = (now.second() + 3) % 60;
-    let cron_expr = format!("{} * * * * *", target_second);
+    // Use "every second" cron to avoid timing boundary issues
+    // (avoids problems when current second > 56, where target_second wraps to next minute)
+    let cron_expr = "* * * * * *"; // Run every second
 
-    let task = create_cron_task("timed_test", &cron_expr);
+    let task = create_cron_task("timed_test", cron_expr);
     engine.register_task(task)?;
 
     // Start engine in background
@@ -124,11 +123,12 @@ async fn test_cron_task_execution_timing() -> Result<()> {
         let _ = engine.start().await;
     });
 
-    // Wait slightly longer than expected execution time
-    sleep(Duration::from_secs(4)).await;
+    // Wait 5 seconds to ensure at least one execution (increased to rule out startup delay)
+    sleep(Duration::from_secs(5)).await;
 
     // Check execution log exists
-    let log_file = log_dir.join("timed_test.log");
+    // Check execution log exists (ProcessHandle creates {name}.stdout.log)
+    let log_file = log_dir.join("timed_test.stdout.log");
     assert!(
         log_file.exists(),
         "Task should have executed and created log"

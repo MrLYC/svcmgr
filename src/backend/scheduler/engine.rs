@@ -313,7 +313,7 @@ impl SchedulerEngine {
         if let Some(task) = self.tasks.get_mut(&name)
             && let Trigger::Cron { .. } = &mut task.trigger
         {
-            task.trigger.compute_next_tick();
+            task.trigger.compute_next_tick()?;
         }
 
         Ok(())
@@ -495,7 +495,7 @@ impl SchedulerEngine {
             {
                 due_tasks.push(name.clone());
                 // Compute next tick
-                task.trigger.compute_next_tick();
+                task.trigger.compute_next_tick()?;
             }
         }
 
