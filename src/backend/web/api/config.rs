@@ -55,6 +55,7 @@ pub struct SvcmgrConfig {
 
 /// 配置验证请求
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct ValidateConfigRequest {
     pub config: Config,
     #[serde(default)]
@@ -90,12 +91,14 @@ pub struct ConfigHistoryEntry {
     pub message: String,
 }
 
+#[allow(dead_code)]
 /// 配置回滚请求
 #[derive(Debug, Deserialize)]
 pub struct RollbackRequest {
     pub commit_id: String,
 }
 
+#[allow(dead_code)]
 /// 配置差异查询参数
 #[derive(Debug, Deserialize)]
 pub struct DiffQuery {
@@ -121,6 +124,7 @@ pub struct ConfigChange {
 }
 
 /// 配置历史查询参数
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct HistoryQuery {
     #[serde(default = "default_limit")]

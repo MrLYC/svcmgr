@@ -68,6 +68,7 @@ pub struct TaskExecution {
 }
 
 /// 任务列表查询参数
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct ListTasksQuery {
     #[serde(default)]
@@ -81,6 +82,7 @@ fn default_per_page() -> usize {
 }
 
 /// 任务历史查询参数
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct TaskHistoryQuery {
     #[serde(default = "default_limit")]

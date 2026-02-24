@@ -47,6 +47,7 @@ pub struct ServiceStatus {
 
 /// 服务列表查询参数
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct ListServicesQuery {
     #[serde(default)]
     pub page: usize,
@@ -62,6 +63,7 @@ fn default_per_page() -> usize {
 
 /// 日志查询参数
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct LogsQuery {
     #[serde(default = "default_lines")]
     pub lines: usize,

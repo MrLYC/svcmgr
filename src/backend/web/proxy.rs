@@ -33,6 +33,7 @@ struct BackendRegistry {
 }
 
 /// 后端服务信息
+#[allow(dead_code)]
 #[derive(Clone)]
 struct Backend {
     /// 服务名
