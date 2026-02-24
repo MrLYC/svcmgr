@@ -26,12 +26,13 @@ impl MiseVersion {
         Self { year, minor, patch }
     }
 
-    /// 从字符串解析版本号 (格式: "2026.2.17" 或 "mise 2026.2.17")
+    /// 从字符串解析版本号 (格式: "2026.2.17", "mise 2026.2.17", "2026.2.19 linux-x64 (2026-02-22)")
     pub fn parse(s: &str) -> Result<Self> {
+        // Find the first token that looks like a version (contains dots)
         let version_part = s
             .split_whitespace()
-            .last()
-            .ok_or_else(|| anyhow::anyhow!("Empty version string"))?;
+            .find(|token| token.contains('.'))
+            .ok_or_else(|| anyhow::anyhow!("No version number found in: {}", s))?;
 
         let parts: Vec<&str> = version_part.split('.').collect();
         if parts.len() != 3 {
@@ -205,6 +206,15 @@ mod tests {
         assert_eq!(v2.year, 2025);
         assert_eq!(v2.minor, 12);
         assert_eq!(v2.patch, 5);
+    }
+
+    #[test]
+    fn test_mise_version_parse_with_platform() {
+        // Test new mise 2026.2.19+ format with platform and build date
+        let v = MiseVersion::parse("2026.2.19 linux-x64 (2026-02-22)").unwrap();
+        assert_eq!(v.year, 2026);
+        assert_eq!(v.minor, 2);
+        assert_eq!(v.patch, 19);
     }
 
     #[test]
