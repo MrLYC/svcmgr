@@ -81,7 +81,7 @@ jobs:
         echo "$OUTPUT"
         
         # Parse total coverage percentage from tarpaulin output
-        COVERAGE=$(echo "$OUTPUT" | grep -oP '\d+\.\d+%' | tail -1 | tr -d '%')
+        COVERAGE=$(echo "$OUTPUT" | grep -oP '\d+\.\d+(?=% coverage)' | head -1)
         
         if [ -z "$COVERAGE" ]; then
           echo "❌ Failed to parse coverage percentage"
