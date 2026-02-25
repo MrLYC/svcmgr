@@ -139,8 +139,10 @@ fn test_task_execution_record() {
         finished_at: None,
         status: ExecutionStatus::Running,
         exit_code: None,
-        stdout: None,
-        stderr: None,
+        pid: None,
+        stdout_preview: String::new(),
+        log_file: std::path::PathBuf::from("/tmp/test.log"),
+        stderr_preview: String::new(),
     };
 
     assert_eq!(record.execution_id, "exec_123");
@@ -170,7 +172,7 @@ fn test_validate_task_name_invalid() {
 
 #[tokio::test]
 async fn test_create_scheduled_task() {
-    let adapter = MockMiseAdapter::new(MiseMock::new(), MiseVersion::V2024);
+    let adapter = MockMiseAdapter::new(MiseMock::new(std::path::PathBuf::from("/tmp")), MiseVersion::new(2024, 1, 0));
 
     let task = ScheduledTask {
         name: "backup".to_string(),
@@ -194,7 +196,7 @@ async fn test_create_scheduled_task() {
 
 #[tokio::test]
 async fn test_get_scheduled_task() {
-    let adapter = MockMiseAdapter::new(MiseMock::new(), MiseVersion::V2024);
+    let adapter = MockMiseAdapter::new(MiseMock::new(std::path::PathBuf::from("/tmp")), MiseVersion::new(2024, 1, 0));
 
     let task = ScheduledTask {
         name: "backup".to_string(),
@@ -221,7 +223,7 @@ async fn test_get_scheduled_task() {
 
 #[tokio::test]
 async fn test_list_scheduled_tasks() {
-    let adapter = MockMiseAdapter::new(MiseMock::new(), MiseVersion::V2024);
+    let adapter = MockMiseAdapter::new(MiseMock::new(std::path::PathBuf::from("/tmp")), MiseVersion::new(2024, 1, 0));
 
     let result = adapter.list_scheduled_tasks().await;
     assert!(result.is_ok());
@@ -229,7 +231,7 @@ async fn test_list_scheduled_tasks() {
 
 #[tokio::test]
 async fn test_update_scheduled_task() {
-    let adapter = MockMiseAdapter::new(MiseMock::new(), MiseVersion::V2024);
+    let adapter = MockMiseAdapter::new(MiseMock::new(std::path::PathBuf::from("/tmp")), MiseVersion::new(2024, 1, 0));
 
     let mut task = ScheduledTask {
         name: "backup".to_string(),
@@ -264,7 +266,7 @@ async fn test_update_scheduled_task() {
 
 #[tokio::test]
 async fn test_delete_scheduled_task() {
-    let adapter = MockMiseAdapter::new(MiseMock::new(), MiseVersion::V2024);
+    let adapter = MockMiseAdapter::new(MiseMock::new(std::path::PathBuf::from("/tmp")), MiseVersion::new(2024, 1, 0));
 
     let task = ScheduledTask {
         name: "backup".to_string(),
@@ -294,7 +296,7 @@ async fn test_delete_scheduled_task() {
 
 #[tokio::test]
 async fn test_scheduled_task_exists() {
-    let adapter = MockMiseAdapter::new(MiseMock::new(), MiseVersion::V2024);
+    let adapter = MockMiseAdapter::new(MiseMock::new(std::path::PathBuf::from("/tmp")), MiseVersion::new(2024, 1, 0));
 
     let task = ScheduledTask {
         name: "backup".to_string(),
@@ -321,7 +323,7 @@ async fn test_scheduled_task_exists() {
 
 #[tokio::test]
 async fn test_create_duplicate_scheduled_task_error() {
-    let adapter = MockMiseAdapter::new(MiseMock::new(), MiseVersion::V2024);
+    let adapter = MockMiseAdapter::new(MiseMock::new(std::path::PathBuf::from("/tmp")), MiseVersion::new(2024, 1, 0));
 
     let task = ScheduledTask {
         name: "backup".to_string(),
@@ -348,7 +350,7 @@ async fn test_create_duplicate_scheduled_task_error() {
 
 #[tokio::test]
 async fn test_update_nonexistent_task_error() {
-    let adapter = MockMiseAdapter::new(MiseMock::new(), MiseVersion::V2024);
+    let adapter = MockMiseAdapter::new(MiseMock::new(std::path::PathBuf::from("/tmp")), MiseVersion::new(2024, 1, 0));
 
     let task = ScheduledTask {
         name: "nonexistent".to_string(),
@@ -373,7 +375,7 @@ async fn test_update_nonexistent_task_error() {
 
 #[tokio::test]
 async fn test_delete_nonexistent_task_error() {
-    let adapter = MockMiseAdapter::new(MiseMock::new(), MiseVersion::V2024);
+    let adapter = MockMiseAdapter::new(MiseMock::new(std::path::PathBuf::from("/tmp")), MiseVersion::new(2024, 1, 0));
 
     // 删除不存在的任务应该失败
     let result = adapter.delete_scheduled_task("nonexistent").await;
@@ -382,7 +384,7 @@ async fn test_delete_nonexistent_task_error() {
 
 #[tokio::test]
 async fn test_get_task_history_empty() {
-    let adapter = MockMiseAdapter::new(MiseMock::new(), MiseVersion::V2024);
+    let adapter = MockMiseAdapter::new(MiseMock::new(std::path::PathBuf::from("/tmp")), MiseVersion::new(2024, 1, 0));
 
     let result = adapter.get_task_history("nonexistent", 10, 0).await;
     assert!(result.is_ok());
@@ -391,7 +393,7 @@ async fn test_get_task_history_empty() {
 
 #[tokio::test]
 async fn test_get_task_history_pagination() {
-    let adapter = MockMiseAdapter::new(MiseMock::new(), MiseVersion::V2024);
+    let adapter = MockMiseAdapter::new(MiseMock::new(std::path::PathBuf::from("/tmp")), MiseVersion::new(2024, 1, 0));
 
     // MVP: execution_history 默认为空，测试分页逻辑
     let result = adapter.get_task_history("test-task", 5, 0).await;
@@ -403,7 +405,7 @@ async fn test_get_task_history_pagination() {
 
 #[tokio::test]
 async fn test_cancel_task_mvp() {
-    let adapter = MockMiseAdapter::new(MiseMock::new(), MiseVersion::V2024);
+    let adapter = MockMiseAdapter::new(MiseMock::new(std::path::PathBuf::from("/tmp")), MiseVersion::new(2024, 1, 0));
 
     // MVP: cancel_task 是 no-op 实现，应该总是成功
     let result = adapter.cancel_task("exec_123").await;
@@ -415,49 +417,51 @@ async fn test_cancel_task_mvp() {
 // ============================================================================
 
 #[test]
-fn test_create_scheduled_task_request_serialization() {
-    let request = CreateScheduledTaskRequest {
-        name: "backup".to_string(),
-        execution: TaskExecution::Command {
-            command: "tar -czf backup.tar.gz /data".to_string(),
-            env: HashMap::new(),
-            dir: None,
+fn test_create_scheduled_task_request_deserialization() {
+    let json = r#"{
+        "name": "backup",
+        "execution": {
+            "Command": {
+                "command": "tar -czf backup.tar.gz /data",
+                "env": {},
+                "dir": null
+            }
         },
-        schedule: "0 2 * * *".to_string(),
-        enabled: Some(true),
-        description: Some("Daily backup".to_string()),
-        timeout: Some(3600),
-        limits: None,
-    };
+        "schedule": "0 2 * * *",
+        "enabled": true,
+        "description": "Daily backup",
+        "timeout": 3600,
+        "limits": null
+    }"#;
 
-    let json = serde_json::to_string(&request).unwrap();
-    assert!(json.contains("backup"));
-    assert!(json.contains("0 2 * * *"));
+    let request: CreateScheduledTaskRequest = serde_json::from_str(json).unwrap();
+    assert_eq!(request.name, "backup");
+    assert_eq!(request.schedule, "0 2 * * *");
 }
 
 #[test]
-fn test_update_scheduled_task_request_partial() {
-    let request = UpdateScheduledTaskRequest {
-        execution: None,
-        schedule: Some("0 3 * * *".to_string()),
-        enabled: Some(false),
-        description: None,
-        timeout: None,
-        limits: None,
-    };
+fn test_update_scheduled_task_request_deserialization() {
+    let json = r#"{
+        "schedule": "0 3 * * *",
+        "enabled": false
+    }"#;
 
-    let json = serde_json::to_string(&request).unwrap();
-    assert!(json.contains("0 3 * * *"));
+    let request: UpdateScheduledTaskRequest = serde_json::from_str(json).unwrap();
+    assert_eq!(request.schedule, Some("0 3 * * *".to_string()));
+    assert_eq!(request.enabled, Some(false));
 }
 
 #[test]
-fn test_task_execution_response_serialization() {
-    let response = TaskExecutionResponse {
+fn test_run_task_response_serialization() {
+    let response = RunTaskResponse {
         execution_id: "exec_123".to_string(),
         task_name: "deploy".to_string(),
-        trigger: TriggerType::Manual,
         started_at: Utc::now(),
         status: ExecutionStatus::Running,
+        pid: None,
+        log_file: std::path::PathBuf::from("/tmp/task.log"),
+        finished_at: None,
+        exit_code: None,
     };
 
     let json = serde_json::to_string(&response).unwrap();
@@ -475,8 +479,10 @@ fn test_task_execution_record_deserialization() {
         "finished_at": "2024-01-01T00:05:00Z",
         "status": "Success",
         "exit_code": 0,
-        "stdout": "Deployment successful",
-        "stderr": null
+        "pid": 12345,
+        "stdout_preview": "Deployment successful",
+        "stderr_preview": "",
+        "log_file": "/tmp/deploy.log"
     }"#;
 
     let record: TaskExecutionRecord = serde_json::from_str(json).unwrap();

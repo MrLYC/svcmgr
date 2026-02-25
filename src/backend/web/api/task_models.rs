@@ -410,7 +410,7 @@ pub struct ListScheduledTasksResponse {
 }
 
 /// 创建定时任务请求
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateScheduledTaskRequest {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -426,7 +426,7 @@ pub struct CreateScheduledTaskRequest {
 }
 
 /// 更新定时任务请求（所有字段可选）
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateScheduledTaskRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub schedule: Option<String>,

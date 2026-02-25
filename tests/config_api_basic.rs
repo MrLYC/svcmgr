@@ -9,7 +9,7 @@
 use chrono::Utc;
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;
-use svcmgr::backend::web::api::config_models::*;
+use svcmgr::web::api::config_models::*;
 
 // ============================================================================
 // 配置数据模型测试 (10 tests)
@@ -103,23 +103,23 @@ fn test_config_section_enum() {
 
 #[test]
 fn test_config_section_from_str() {
-    assert_eq!(ConfigSection::from_str("tools"), Some(ConfigSection::Tools));
-    assert_eq!(ConfigSection::from_str("env"), Some(ConfigSection::Env));
-    assert_eq!(ConfigSection::from_str("tasks"), Some(ConfigSection::Tasks));
+    assert_eq!(ConfigSection::parse("tools"), Some(ConfigSection::Tools));
+    assert_eq!(ConfigSection::parse("env"), Some(ConfigSection::Env));
+    assert_eq!(ConfigSection::parse("tasks"), Some(ConfigSection::Tasks));
     assert_eq!(
-        ConfigSection::from_str("services"),
+        ConfigSection::parse("services"),
         Some(ConfigSection::Services)
     );
     assert_eq!(
-        ConfigSection::from_str("scheduled_tasks"),
+        ConfigSection::parse("scheduled_tasks"),
         Some(ConfigSection::ScheduledTasks)
     );
     assert_eq!(
-        ConfigSection::from_str("features"),
+        ConfigSection::parse("features"),
         Some(ConfigSection::Features)
     );
-    assert_eq!(ConfigSection::from_str("http"), Some(ConfigSection::Http));
-    assert_eq!(ConfigSection::from_str("invalid"), None);
+    assert_eq!(ConfigSection::parse("http"), Some(ConfigSection::Http));
+    assert_eq!(ConfigSection::parse("invalid"), None);
 }
 
 #[test]
@@ -173,10 +173,9 @@ fn test_http_config_default() {
 fn test_http_config_with_routes() {
     let route = HttpRoute {
         path: "/api".to_string(),
-        backend: "http://localhost:8080".to_string(),
-        methods: vec!["GET".to_string(), "POST".to_string()],
-        strip_prefix: Some(true),
-        timeout: Some(30),
+        target: "app-service".to_string(),
+        port: "http".to_string(),
+        rewrite: None,
     };
 
     let http = HttpConfig {
@@ -187,7 +186,7 @@ fn test_http_config_with_routes() {
     assert_eq!(http.listen, "0.0.0.0:8080");
     assert_eq!(http.routes.len(), 1);
     assert_eq!(http.routes[0].path, "/api");
-    assert_eq!(http.routes[0].backend, "http://localhost:8080");
+    assert_eq!(http.routes[0].target, "app-service");
 }
 
 // ============================================================================
@@ -485,11 +484,10 @@ fn test_config_diff_query() {
 fn test_rollback_config_request() {
     let request = RollbackConfigRequest {
         commit: "abc123".to_string(),
-        message: Some("Rollback to stable version".to_string()),
     };
 
     assert_eq!(request.commit, "abc123");
-    assert!(request.message.is_some());
+    assert_eq!(request.commit, "abc123");
 }
 
 #[test]
