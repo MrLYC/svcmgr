@@ -38,6 +38,7 @@ use crate::web::server::{ApiError, ApiResponse, AppState};
 // ============================================================================
 
 /// 任务列表查询参数
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct ListTasksQuery {
     #[serde(default)]
