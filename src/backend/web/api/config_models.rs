@@ -78,7 +78,7 @@ impl ConfigSection {
     }
 
     /// 从字符串解析段落名称
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
             "tools" => Some(Self::Tools),
             "env" => Some(Self::Env),
@@ -128,10 +128,11 @@ impl Default for Features {
 }
 
 /// 功能开关模式
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum FeatureMode {
     /// 自动检测（默认）
+    #[default]
     Auto,
 
     /// 强制启用
@@ -139,12 +140,6 @@ pub enum FeatureMode {
 
     /// 完全禁用
     Disabled,
-}
-
-impl Default for FeatureMode {
-    fn default() -> Self {
-        Self::Auto
-    }
 }
 
 // ============================================================================

@@ -146,23 +146,18 @@ pub struct ResourceLimits {
 }
 
 /// 重启策略
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "kebab-case")]
 pub enum RestartPolicy {
     /// 永不重启
     No,
 
     /// 失败时重启（退出码非 0）
+    #[default]
     OnFailure,
 
     /// 总是重启（无论退出码）
     Always,
-}
-
-impl Default for RestartPolicy {
-    fn default() -> Self {
-        Self::OnFailure
-    }
 }
 
 // ============================================================================
@@ -429,7 +424,7 @@ fn is_valid_port(port: u16) -> bool {
 
 /// 验证超时时间
 fn validate_timeout(timeout: u64) -> Result<(), String> {
-    if timeout < 1 || timeout > 300 {
+    if !(1..=300).contains(&timeout) {
         return Err(format!(
             "Invalid timeout {}: must be 1-300 seconds",
             timeout
@@ -440,7 +435,7 @@ fn validate_timeout(timeout: u64) -> Result<(), String> {
 
 /// 验证检查间隔
 fn validate_interval(interval: u64) -> Result<(), String> {
-    if interval < 5 || interval > 3600 {
+    if !(5..=3600).contains(&interval) {
         return Err(format!(
             "Invalid interval {}: must be 5-3600 seconds",
             interval

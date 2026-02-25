@@ -361,7 +361,7 @@ async fn get_config_section(
     State(state): State<AppState>,
     Path(section_str): Path<String>,
 ) -> Result<Json<ApiResponse<JsonValue>>, ApiError> {
-    let section = ConfigSection::from_str(&section_str).ok_or_else(|| {
+    let section = ConfigSection::parse(&section_str).ok_or_else(|| {
         ApiError::new(
             "INVALID_SECTION",
             format!("Invalid config section: {}", section_str),
@@ -416,7 +416,7 @@ async fn patch_config_section(
     Path(section_str): Path<String>,
     Json(request): Json<PatchConfigSectionRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, ApiError> {
-    let section = ConfigSection::from_str(&section_str).ok_or_else(|| {
+    let section = ConfigSection::parse(&section_str).ok_or_else(|| {
         ApiError::new(
             "INVALID_SECTION",
             format!("Invalid config section: {}", section_str),
@@ -673,17 +673,17 @@ async fn get_config_history(
             .unwrap_or_default();
 
         // 过滤: 如果指定了 file,只返回涉及该文件的提交
-        if let Some(file_filter) = &params.file {
-            if !files.iter().any(|f| f.contains(file_filter)) {
-                continue;
-            }
+        if let Some(file_filter) = &params.file
+            && !files.iter().any(|f| f.contains(file_filter))
+        {
+            continue;
         }
 
         history.push(ConfigHistory {
             commit: commit_info.id,
             message: commit_info.message,
             timestamp: DateTime::<Utc>::from_timestamp(commit_info.time, 0)
-                .unwrap_or_else(|| Utc::now()),
+                .unwrap_or_else(Utc::now),
             author: commit_info.author,
             files,
         });
