@@ -176,7 +176,7 @@ pub trait EnvPort: Send + Sync {
 
 /// 配置文件端口 (Configuration files)
 #[async_trait]
-pub trait ConfigPort: Send + Sync {
+pub trait ConfigPort: TaskPort + Send + Sync {
     /// 获取 mise 当前加载的配置文件列表 (按优先级排序)
     async fn list_config_files(&self) -> Result<Vec<PathBuf>>;
 
@@ -202,6 +202,89 @@ pub trait ConfigPort: Send + Sync {
     -> Result<()>;
 
     async fn delete_env_var(&self, key: &str, scope: &crate::env::EnvScope) -> Result<()>;
+
+    // ========================================================================
+    // Task Management - 任务管理
+    // ========================================================================
+
+    /// 取消正在运行的任务
+    async fn cancel_task(&self, execution_id: &str) -> Result<()>;
+
+    /// 获取任务执行历史
+    async fn get_task_history(
+        &self,
+        task_name: &str,
+        limit: u32,
+        offset: u32,
+    ) -> Result<Vec<crate::web::api::task_models::TaskExecutionRecord>>;
+
+    // ========================================================================
+    // Scheduled Tasks - 定时任务管理
+    // ========================================================================
+
+    /// 列出所有定时任务
+    async fn list_scheduled_tasks(
+        &self,
+    ) -> Result<Vec<crate::web::api::task_models::ScheduledTask>>;
+
+    /// 获取指定定时任务
+    async fn get_scheduled_task(
+        &self,
+        name: &str,
+    ) -> Result<Option<crate::web::api::task_models::ScheduledTask>>;
+
+    /// 检查定时任务是否存在
+    async fn scheduled_task_exists(&self, name: &str) -> Result<bool>;
+
+    /// 创建定时任务
+    async fn create_scheduled_task(
+        &self,
+        task: &crate::web::api::task_models::ScheduledTask,
+    ) -> Result<()>;
+
+    /// 更新定时任务
+    async fn update_scheduled_task(
+        &self,
+        name: &str,
+        task: &crate::web::api::task_models::ScheduledTask,
+    ) -> Result<()>;
+
+    /// 删除定时任务
+    async fn delete_scheduled_task(&self, name: &str) -> Result<()>;
+
+    // ========================================================================
+    // Service Management - 服务管理
+    // ========================================================================
+
+    /// 获取服务定义
+    async fn get_service(
+        &self,
+        name: &str,
+    ) -> Result<crate::web::api::service_models::ServiceDefinition>;
+
+    /// 列出所有服务
+    async fn list_services(
+        &self,
+    ) -> Result<Vec<crate::web::api::service_models::ServiceDefinition>>;
+
+    /// 创建服务
+    async fn create_service(
+        &self,
+        service: &crate::web::api::service_models::ServiceDefinition,
+    ) -> Result<()>;
+
+    /// 更新服务（完全替换）
+    async fn update_service(
+        &self,
+        name: &str,
+        service: &crate::web::api::service_models::ServiceDefinition,
+    ) -> Result<()>;
+
+    /// 部分更新服务
+    async fn patch_service(&self, name: &str, updates: &serde_json::Value) -> Result<()>;
+
+    /// 删除服务
+    async fn delete_service(&self, name: &str) -> Result<()>;
 }
 
 // ============================================================================

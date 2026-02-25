@@ -8,6 +8,7 @@
 mod config;
 pub mod config_models;
 pub mod env_handlers;
+pub mod env_models;
 pub mod service_models;
 mod services;
 pub mod task_models;
@@ -20,7 +21,7 @@ use axum::Router;
 /// 返回 `/api/v1` 命名空间下的所有子路由
 pub fn api_routes(app_state: AppState) -> Router {
     Router::new()
-        .nest("/services", services::routes(app_state.clone()))
+        .nest("/services", services::routes())
         .nest("/tasks", tasks::routes().with_state(app_state.clone()))
         .nest(
             "/scheduled-tasks",

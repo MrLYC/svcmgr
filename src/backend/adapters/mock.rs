@@ -358,6 +358,117 @@ impl ConfigPort for MockMiseAdapter {
         }
         Ok(())
     }
+
+    // ========================================================================
+    // Task Management - 任务管理
+    // ========================================================================
+
+    async fn cancel_task(&self, _execution_id: &str) -> Result<()> {
+        // MVP: no-op implementation
+        Ok(())
+    }
+
+    async fn get_task_history(
+        &self,
+        _task_name: &str,
+        _limit: u32,
+        _offset: u32,
+    ) -> Result<Vec<crate::web::api::task_models::TaskExecutionRecord>> {
+        // MVP: 返回空列表
+        Ok(Vec::new())
+    }
+
+    // ========================================================================
+    // Scheduled Tasks - 定时任务管理
+    // ========================================================================
+
+    async fn list_scheduled_tasks(
+        &self,
+    ) -> Result<Vec<crate::web::api::task_models::ScheduledTask>> {
+        // MVP: 返回空列表
+        Ok(Vec::new())
+    }
+
+    async fn get_scheduled_task(
+        &self,
+        _name: &str,
+    ) -> Result<Option<crate::web::api::task_models::ScheduledTask>> {
+        // MVP: 总是返回 None
+        Ok(None)
+    }
+
+    async fn scheduled_task_exists(&self, _name: &str) -> Result<bool> {
+        // MVP: 总是返回 false
+        Ok(false)
+    }
+
+    async fn create_scheduled_task(
+        &self,
+        _task: &crate::web::api::task_models::ScheduledTask,
+    ) -> Result<()> {
+        // MVP: no-op implementation
+        Ok(())
+    }
+
+    async fn update_scheduled_task(
+        &self,
+        _name: &str,
+        _task: &crate::web::api::task_models::ScheduledTask,
+    ) -> Result<()> {
+        // MVP: no-op implementation
+        Ok(())
+    }
+
+    async fn delete_scheduled_task(&self, _name: &str) -> Result<()> {
+        // MVP: no-op implementation
+        Ok(())
+    }
+
+    // ========================================================================
+    // Service Management - 服务管理
+    // ========================================================================
+
+    async fn get_service(
+        &self,
+        name: &str,
+    ) -> Result<crate::web::api::service_models::ServiceDefinition> {
+        // MVP: 返回错误 - 服务不存在
+        anyhow::bail!("Service '{}' not found", name)
+    }
+
+    async fn list_services(
+        &self,
+    ) -> Result<Vec<crate::web::api::service_models::ServiceDefinition>> {
+        // MVP: 返回空列表
+        Ok(Vec::new())
+    }
+
+    async fn create_service(
+        &self,
+        _service: &crate::web::api::service_models::ServiceDefinition,
+    ) -> Result<()> {
+        // MVP: no-op implementation
+        Ok(())
+    }
+
+    async fn update_service(
+        &self,
+        _name: &str,
+        _service: &crate::web::api::service_models::ServiceDefinition,
+    ) -> Result<()> {
+        // MVP: no-op implementation
+        Ok(())
+    }
+
+    async fn patch_service(&self, _name: &str, _updates: &serde_json::Value) -> Result<()> {
+        // MVP: no-op implementation
+        Ok(())
+    }
+
+    async fn delete_service(&self, _name: &str) -> Result<()> {
+        // MVP: no-op implementation
+        Ok(())
+    }
 }
 
 /// Implement MiseAdapter marker trait (combines all 4 port traits)

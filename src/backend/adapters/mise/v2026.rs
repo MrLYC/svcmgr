@@ -560,6 +560,117 @@ impl ConfigPort for MiseV2026Adapter {
 
         Ok(())
     }
+
+    // ========================================================================
+    // Task Management (Configuration Management API)
+    // ========================================================================
+
+    async fn cancel_task(&self, _execution_id: &str) -> Result<()> {
+        // MVP: Not implemented yet
+        anyhow::bail!("cancel_task not implemented in MiseV2026Adapter")
+    }
+
+    async fn get_task_history(
+        &self,
+        _task_name: &str,
+        _limit: u32,
+        _offset: u32,
+    ) -> Result<Vec<crate::web::api::task_models::TaskExecutionRecord>> {
+        // MVP: Return empty history
+        Ok(Vec::new())
+    }
+
+    // ========================================================================
+    // Scheduled Tasks (Configuration Management API)
+    // ========================================================================
+
+    async fn list_scheduled_tasks(
+        &self,
+    ) -> Result<Vec<crate::web::api::task_models::ScheduledTask>> {
+        // MVP: Return empty list
+        Ok(Vec::new())
+    }
+
+    async fn get_scheduled_task(
+        &self,
+        _name: &str,
+    ) -> Result<Option<crate::web::api::task_models::ScheduledTask>> {
+        // MVP: Not found
+        Ok(None)
+    }
+
+    async fn scheduled_task_exists(&self, _name: &str) -> Result<bool> {
+        // MVP: Always false
+        Ok(false)
+    }
+
+    async fn create_scheduled_task(
+        &self,
+        _task: &crate::web::api::task_models::ScheduledTask,
+    ) -> Result<()> {
+        // MVP: Not implemented
+        anyhow::bail!("create_scheduled_task not implemented in MiseV2026Adapter")
+    }
+
+    async fn update_scheduled_task(
+        &self,
+        _name: &str,
+        _task: &crate::web::api::task_models::ScheduledTask,
+    ) -> Result<()> {
+        // MVP: Not implemented
+        anyhow::bail!("update_scheduled_task not implemented in MiseV2026Adapter")
+    }
+
+    async fn delete_scheduled_task(&self, _name: &str) -> Result<()> {
+        // MVP: Not implemented
+        anyhow::bail!("delete_scheduled_task not implemented in MiseV2026Adapter")
+    }
+
+    // ========================================================================
+    // Service Management (Configuration Management API)
+    // ========================================================================
+
+    async fn get_service(
+        &self,
+        _name: &str,
+    ) -> Result<crate::web::api::service_models::ServiceDefinition> {
+        // MVP: Not implemented
+        anyhow::bail!("get_service not implemented in MiseV2026Adapter")
+    }
+
+    async fn list_services(
+        &self,
+    ) -> Result<Vec<crate::web::api::service_models::ServiceDefinition>> {
+        // MVP: Return empty list
+        Ok(Vec::new())
+    }
+
+    async fn create_service(
+        &self,
+        _service: &crate::web::api::service_models::ServiceDefinition,
+    ) -> Result<()> {
+        // MVP: Not implemented
+        anyhow::bail!("create_service not implemented in MiseV2026Adapter")
+    }
+
+    async fn update_service(
+        &self,
+        _name: &str,
+        _service: &crate::web::api::service_models::ServiceDefinition,
+    ) -> Result<()> {
+        // MVP: Not implemented
+        anyhow::bail!("update_service not implemented in MiseV2026Adapter")
+    }
+
+    async fn patch_service(&self, _name: &str, _updates: &serde_json::Value) -> Result<()> {
+        // MVP: Not implemented
+        anyhow::bail!("patch_service not implemented in MiseV2026Adapter")
+    }
+
+    async fn delete_service(&self, _name: &str) -> Result<()> {
+        // MVP: Not implemented
+        anyhow::bail!("delete_service not implemented in MiseV2026Adapter")
+    }
 }
 /// Implement MiseAdapter marker trait (combines all 4 port traits)
 impl super::MiseAdapter for MiseV2026Adapter {}

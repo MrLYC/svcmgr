@@ -33,7 +33,6 @@ use std::path::PathBuf;
 
 use super::task_models::*;
 use crate::web::server::{ApiError, ApiResponse, AppState};
-
 // ============================================================================
 // 查询参数结构体
 // ============================================================================
@@ -141,15 +140,21 @@ async fn get_task(
 async fn run_task(
     State(_state): State<AppState>,
     Path(name): Path<String>,
-) -> Result<Json<ApiResponse<TaskExecutionResponse>>, ApiError> {
+) -> Result<Json<ApiResponse<TaskExecutionRecord>>, ApiError> {
     // MVP: 返回占位符执行记录
     // TODO: 实现真实的任务执行逻辑
-    let exec = TaskExecutionResponse {
+    let exec = TaskExecutionRecord {
         execution_id: format!("exec_{}", Uuid::new_v4()),
         task_name: name,
         trigger: TriggerType::Manual,
         started_at: chrono::Utc::now(),
         status: ExecutionStatus::Running,
+        finished_at: None,
+        exit_code: None,
+        pid: None,
+        stdout_preview: String::new(),
+        stderr_preview: String::new(),
+        log_file: std::path::PathBuf::from("/tmp/placeholder.log"),
     };
 
     Ok(Json(ApiResponse {
@@ -558,15 +563,21 @@ async fn disable_scheduled_task(
 async fn run_scheduled_task(
     State(_state): State<AppState>,
     Path(name): Path<String>,
-) -> Result<Json<ApiResponse<TaskExecutionResponse>>, ApiError> {
+) -> Result<Json<ApiResponse<TaskExecutionRecord>>, ApiError> {
     // MVP: 返回占位符执行记录
     // TODO: 实现真实的任务执行逻辑
-    let exec = TaskExecutionResponse {
+    let exec = TaskExecutionRecord {
         execution_id: format!("exec_{}", Uuid::new_v4()),
         task_name: name,
         trigger: TriggerType::Manual,
         started_at: chrono::Utc::now(),
         status: ExecutionStatus::Running,
+        finished_at: None,
+        exit_code: None,
+        pid: None,
+        stdout_preview: String::new(),
+        stderr_preview: String::new(),
+        log_file: std::path::PathBuf::from("/tmp/placeholder.log"),
     };
 
     Ok(Json(ApiResponse {

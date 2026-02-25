@@ -133,7 +133,7 @@ async fn list_env_vars(
                 )
             })?;
 
-        for (key, value, scope) in page_vars {
+        for (key, value, scope) in page_vars.iter() {
             let has_refs = value.contains("${");
             let expanded = if has_refs {
                 expander.expand(value, scope).await.ok()
@@ -153,7 +153,7 @@ async fn list_env_vars(
             });
         }
     } else {
-        for (key, value, scope) in page_vars {
+        for (key, value, scope) in page_vars.iter() {
             result_vars.push(EnvVar {
                 key: key.clone(),
                 value: value.clone(),
