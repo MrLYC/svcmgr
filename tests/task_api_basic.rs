@@ -172,7 +172,10 @@ fn test_validate_task_name_invalid() {
 
 #[tokio::test]
 async fn test_create_scheduled_task() {
-    let adapter = MockMiseAdapter::new(MiseMock::new(std::path::PathBuf::from("/tmp")), MiseVersion::new(2024, 1, 0));
+    let adapter = MockMiseAdapter::new(
+        MiseMock::new(std::path::PathBuf::from("/tmp")),
+        MiseVersion::new(2024, 1, 0),
+    );
 
     let task = ScheduledTask {
         name: "backup".to_string(),
@@ -196,7 +199,10 @@ async fn test_create_scheduled_task() {
 
 #[tokio::test]
 async fn test_get_scheduled_task() {
-    let adapter = MockMiseAdapter::new(MiseMock::new(std::path::PathBuf::from("/tmp")), MiseVersion::new(2024, 1, 0));
+    let adapter = MockMiseAdapter::new(
+        MiseMock::new(std::path::PathBuf::from("/tmp")),
+        MiseVersion::new(2024, 1, 0),
+    );
 
     let task = ScheduledTask {
         name: "backup".to_string(),
@@ -223,7 +229,10 @@ async fn test_get_scheduled_task() {
 
 #[tokio::test]
 async fn test_list_scheduled_tasks() {
-    let adapter = MockMiseAdapter::new(MiseMock::new(std::path::PathBuf::from("/tmp")), MiseVersion::new(2024, 1, 0));
+    let adapter = MockMiseAdapter::new(
+        MiseMock::new(std::path::PathBuf::from("/tmp")),
+        MiseVersion::new(2024, 1, 0),
+    );
 
     let result = adapter.list_scheduled_tasks().await;
     assert!(result.is_ok());
@@ -231,7 +240,10 @@ async fn test_list_scheduled_tasks() {
 
 #[tokio::test]
 async fn test_update_scheduled_task() {
-    let adapter = MockMiseAdapter::new(MiseMock::new(std::path::PathBuf::from("/tmp")), MiseVersion::new(2024, 1, 0));
+    let adapter = MockMiseAdapter::new(
+        MiseMock::new(std::path::PathBuf::from("/tmp")),
+        MiseVersion::new(2024, 1, 0),
+    );
 
     let mut task = ScheduledTask {
         name: "backup".to_string(),
@@ -266,7 +278,10 @@ async fn test_update_scheduled_task() {
 
 #[tokio::test]
 async fn test_delete_scheduled_task() {
-    let adapter = MockMiseAdapter::new(MiseMock::new(std::path::PathBuf::from("/tmp")), MiseVersion::new(2024, 1, 0));
+    let adapter = MockMiseAdapter::new(
+        MiseMock::new(std::path::PathBuf::from("/tmp")),
+        MiseVersion::new(2024, 1, 0),
+    );
 
     let task = ScheduledTask {
         name: "backup".to_string(),
@@ -296,7 +311,10 @@ async fn test_delete_scheduled_task() {
 
 #[tokio::test]
 async fn test_scheduled_task_exists() {
-    let adapter = MockMiseAdapter::new(MiseMock::new(std::path::PathBuf::from("/tmp")), MiseVersion::new(2024, 1, 0));
+    let adapter = MockMiseAdapter::new(
+        MiseMock::new(std::path::PathBuf::from("/tmp")),
+        MiseVersion::new(2024, 1, 0),
+    );
 
     let task = ScheduledTask {
         name: "backup".to_string(),
@@ -323,7 +341,10 @@ async fn test_scheduled_task_exists() {
 
 #[tokio::test]
 async fn test_create_duplicate_scheduled_task_error() {
-    let adapter = MockMiseAdapter::new(MiseMock::new(std::path::PathBuf::from("/tmp")), MiseVersion::new(2024, 1, 0));
+    let adapter = MockMiseAdapter::new(
+        MiseMock::new(std::path::PathBuf::from("/tmp")),
+        MiseVersion::new(2024, 1, 0),
+    );
 
     let task = ScheduledTask {
         name: "backup".to_string(),
@@ -350,7 +371,10 @@ async fn test_create_duplicate_scheduled_task_error() {
 
 #[tokio::test]
 async fn test_update_nonexistent_task_error() {
-    let adapter = MockMiseAdapter::new(MiseMock::new(std::path::PathBuf::from("/tmp")), MiseVersion::new(2024, 1, 0));
+    let adapter = MockMiseAdapter::new(
+        MiseMock::new(std::path::PathBuf::from("/tmp")),
+        MiseVersion::new(2024, 1, 0),
+    );
 
     let task = ScheduledTask {
         name: "nonexistent".to_string(),
@@ -375,7 +399,10 @@ async fn test_update_nonexistent_task_error() {
 
 #[tokio::test]
 async fn test_delete_nonexistent_task_error() {
-    let adapter = MockMiseAdapter::new(MiseMock::new(std::path::PathBuf::from("/tmp")), MiseVersion::new(2024, 1, 0));
+    let adapter = MockMiseAdapter::new(
+        MiseMock::new(std::path::PathBuf::from("/tmp")),
+        MiseVersion::new(2024, 1, 0),
+    );
 
     // 删除不存在的任务应该失败
     let result = adapter.delete_scheduled_task("nonexistent").await;
@@ -384,7 +411,10 @@ async fn test_delete_nonexistent_task_error() {
 
 #[tokio::test]
 async fn test_get_task_history_empty() {
-    let adapter = MockMiseAdapter::new(MiseMock::new(std::path::PathBuf::from("/tmp")), MiseVersion::new(2024, 1, 0));
+    let adapter = MockMiseAdapter::new(
+        MiseMock::new(std::path::PathBuf::from("/tmp")),
+        MiseVersion::new(2024, 1, 0),
+    );
 
     let result = adapter.get_task_history("nonexistent", 10, 0).await;
     assert!(result.is_ok());
@@ -393,7 +423,10 @@ async fn test_get_task_history_empty() {
 
 #[tokio::test]
 async fn test_get_task_history_pagination() {
-    let adapter = MockMiseAdapter::new(MiseMock::new(std::path::PathBuf::from("/tmp")), MiseVersion::new(2024, 1, 0));
+    let adapter = MockMiseAdapter::new(
+        MiseMock::new(std::path::PathBuf::from("/tmp")),
+        MiseVersion::new(2024, 1, 0),
+    );
 
     // MVP: execution_history 默认为空，测试分页逻辑
     let result = adapter.get_task_history("test-task", 5, 0).await;
@@ -405,7 +438,10 @@ async fn test_get_task_history_pagination() {
 
 #[tokio::test]
 async fn test_cancel_task_mvp() {
-    let adapter = MockMiseAdapter::new(MiseMock::new(std::path::PathBuf::from("/tmp")), MiseVersion::new(2024, 1, 0));
+    let adapter = MockMiseAdapter::new(
+        MiseMock::new(std::path::PathBuf::from("/tmp")),
+        MiseVersion::new(2024, 1, 0),
+    );
 
     // MVP: cancel_task 是 no-op 实现，应该总是成功
     let result = adapter.cancel_task("exec_123").await;

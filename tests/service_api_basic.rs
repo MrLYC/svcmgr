@@ -93,7 +93,10 @@ fn test_restart_policy_variants() {
 
 #[tokio::test]
 async fn test_create_service() {
-    let adapter = MockMiseAdapter::new(MiseMock::new(std::path::PathBuf::from("/tmp")), MiseVersion::new(2024, 1, 0));
+    let adapter = MockMiseAdapter::new(
+        MiseMock::new(std::path::PathBuf::from("/tmp")),
+        MiseVersion::new(2024, 1, 0),
+    );
 
     let service_def = ServiceDefinition {
         name: "test-service".to_string(),
@@ -114,7 +117,10 @@ async fn test_create_service() {
 
 #[tokio::test]
 async fn test_get_service() {
-    let adapter = MockMiseAdapter::new(MiseMock::new(std::path::PathBuf::from("/tmp")), MiseVersion::new(2024, 1, 0));
+    let adapter = MockMiseAdapter::new(
+        MiseMock::new(std::path::PathBuf::from("/tmp")),
+        MiseVersion::new(2024, 1, 0),
+    );
 
     let service_def = ServiceDefinition {
         name: "test-service".to_string(),
@@ -139,7 +145,10 @@ async fn test_get_service() {
 
 #[tokio::test]
 async fn test_list_services() {
-    let adapter = MockMiseAdapter::new(MiseMock::new(std::path::PathBuf::from("/tmp")), MiseVersion::new(2024, 1, 0));
+    let adapter = MockMiseAdapter::new(
+        MiseMock::new(std::path::PathBuf::from("/tmp")),
+        MiseVersion::new(2024, 1, 0),
+    );
 
     let result = adapter.list_services().await;
     assert!(result.is_ok());
@@ -147,7 +156,10 @@ async fn test_list_services() {
 
 #[tokio::test]
 async fn test_update_service() {
-    let adapter = MockMiseAdapter::new(MiseMock::new(std::path::PathBuf::from("/tmp")), MiseVersion::new(2024, 1, 0));
+    let adapter = MockMiseAdapter::new(
+        MiseMock::new(std::path::PathBuf::from("/tmp")),
+        MiseVersion::new(2024, 1, 0),
+    );
 
     let service_def = ServiceDefinition {
         name: "test-service".to_string(),
@@ -183,7 +195,10 @@ async fn test_update_service() {
 
 #[tokio::test]
 async fn test_patch_service() {
-    let adapter = MockMiseAdapter::new(MiseMock::new(std::path::PathBuf::from("/tmp")), MiseVersion::new(2024, 1, 0));
+    let adapter = MockMiseAdapter::new(
+        MiseMock::new(std::path::PathBuf::from("/tmp")),
+        MiseVersion::new(2024, 1, 0),
+    );
 
     let service_def = ServiceDefinition {
         name: "test-service".to_string(),
@@ -219,7 +234,10 @@ async fn test_patch_service() {
 
 #[tokio::test]
 async fn test_delete_service() {
-    let adapter = MockMiseAdapter::new(MiseMock::new(std::path::PathBuf::from("/tmp")), MiseVersion::new(2024, 1, 0));
+    let adapter = MockMiseAdapter::new(
+        MiseMock::new(std::path::PathBuf::from("/tmp")),
+        MiseVersion::new(2024, 1, 0),
+    );
 
     let service_def = ServiceDefinition {
         name: "test-service".to_string(),
@@ -245,7 +263,10 @@ async fn test_delete_service() {
 
 #[tokio::test]
 async fn test_create_duplicate_service_fails() {
-    let adapter = MockMiseAdapter::new(MiseMock::new(std::path::PathBuf::from("/tmp")), MiseVersion::new(2024, 1, 0));
+    let adapter = MockMiseAdapter::new(
+        MiseMock::new(std::path::PathBuf::from("/tmp")),
+        MiseVersion::new(2024, 1, 0),
+    );
 
     let service_def = ServiceDefinition {
         name: "test-service".to_string(),
@@ -268,7 +289,10 @@ async fn test_create_duplicate_service_fails() {
 
 #[tokio::test]
 async fn test_get_nonexistent_service() {
-    let adapter = MockMiseAdapter::new(MiseMock::new(std::path::PathBuf::from("/tmp")), MiseVersion::new(2024, 1, 0));
+    let adapter = MockMiseAdapter::new(
+        MiseMock::new(std::path::PathBuf::from("/tmp")),
+        MiseVersion::new(2024, 1, 0),
+    );
 
     let result = adapter.get_service("nonexistent").await;
     assert!(result.is_err());
@@ -276,7 +300,10 @@ async fn test_get_nonexistent_service() {
 
 #[tokio::test]
 async fn test_update_nonexistent_service_fails() {
-    let adapter = MockMiseAdapter::new(MiseMock::new(std::path::PathBuf::from("/tmp")), MiseVersion::new(2024, 1, 0));
+    let adapter = MockMiseAdapter::new(
+        MiseMock::new(std::path::PathBuf::from("/tmp")),
+        MiseVersion::new(2024, 1, 0),
+    );
 
     let service_def = ServiceDefinition {
         name: "test-service".to_string(),
@@ -297,7 +324,10 @@ async fn test_update_nonexistent_service_fails() {
 
 #[tokio::test]
 async fn test_delete_nonexistent_service_fails() {
-    let adapter = MockMiseAdapter::new(MiseMock::new(std::path::PathBuf::from("/tmp")), MiseVersion::new(2024, 1, 0));
+    let adapter = MockMiseAdapter::new(
+        MiseMock::new(std::path::PathBuf::from("/tmp")),
+        MiseVersion::new(2024, 1, 0),
+    );
 
     let result = adapter.delete_service("nonexistent").await;
     assert!(result.is_err());
