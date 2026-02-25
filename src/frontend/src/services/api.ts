@@ -7,7 +7,7 @@ import type {
 } from "@/types/api";
 
 const API_BASE = "/svcmgr/api";
-const USE_MOCK = true; // Toggle to false when backend is ready
+const USE_MOCK = false; // Backend is ready - using real API
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
