@@ -459,17 +459,17 @@ mod tests {
 
     #[test]
     fn test_config_section_from_str() {
-        assert_eq!(ConfigSection::from_str("tools"), Some(ConfigSection::Tools));
-        assert_eq!(ConfigSection::from_str("TOOLS"), Some(ConfigSection::Tools));
+        assert_eq!(ConfigSection::parse("tools"), Some(ConfigSection::Tools));
+        assert_eq!(ConfigSection::parse("TOOLS"), Some(ConfigSection::Tools));
         assert_eq!(
-            ConfigSection::from_str("scheduled_tasks"),
+            ConfigSection::parse("scheduled_tasks"),
             Some(ConfigSection::ScheduledTasks)
         );
         assert_eq!(
-            ConfigSection::from_str("scheduledtasks"),
+            ConfigSection::parse("scheduledtasks"),
             Some(ConfigSection::ScheduledTasks)
         );
-        assert_eq!(ConfigSection::from_str("invalid"), None);
+        assert_eq!(ConfigSection::parse("invalid"), None);
     }
 
     #[test]
