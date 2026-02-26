@@ -704,7 +704,7 @@ async fn rollback_config(
 
     let target = RollbackTarget::Commit(request.commit);
     git.rollback(target, false)
-        .map_err(|e| ApiError::internal_error(format!("Rollback failed: {}", e)))?;
+        .map_err(|e| ApiError::new("BAD_REQUEST", format!("Rollback failed: {}", e)))?;
 
     // 释放 Git 锁
     drop(git);
@@ -790,9 +790,9 @@ async fn import_config(
     // 解析导入的配置
     let imported_config: Config = match request.format {
         ExportFormat::Json => serde_json::from_str(&request.config)
-            .map_err(|e| ApiError::new("INVALID_FORMAT", format!("Invalid JSON: {}", e)))?,
+            .map_err(|e| ApiError::new("INVALID_INPUT", format!("Invalid JSON: {}", e)))?,
         ExportFormat::Toml => toml::from_str(&request.config)
-            .map_err(|e| ApiError::new("INVALID_FORMAT", format!("Invalid TOML: {}", e)))?,
+            .map_err(|e| ApiError::new("INVALID_INPUT", format!("Invalid TOML: {}", e)))?,
     };
 
     // 如果是合并模式,先读取现有配置
