@@ -22,23 +22,23 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     /// mise 工具版本（[tools] 段）
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    #[serde(default)]
     pub tools: HashMap<String, String>,
 
     /// 环境变量（[env] 段）
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    #[serde(default)]
     pub env: HashMap<String, String>,
 
     /// mise 任务定义（[tasks] 段）
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    #[serde(default)]
     pub tasks: HashMap<String, JsonValue>,
 
     /// systemd 服务定义（[services] 段）
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    #[serde(default)]
     pub services: HashMap<String, JsonValue>,
 
     /// cron 定时任务（[scheduled_tasks] 段）
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    #[serde(default)]
     pub scheduled_tasks: HashMap<String, JsonValue>,
 
     /// 功能开关（[features] 段）
