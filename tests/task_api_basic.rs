@@ -154,7 +154,7 @@ fn test_task_execution_record() {
 #[test]
 fn test_validate_task_name_valid() {
     assert!(validate_task_name("valid_task").is_ok());
-    assert!(validate_task_name("task-123").is_ok());
+    assert!(validate_task_name("task_123").is_ok());
     assert!(validate_task_name("MyTask").is_ok());
 }
 
@@ -457,11 +457,10 @@ fn test_create_scheduled_task_request_deserialization() {
     let json = r#"{
         "name": "backup",
         "execution": {
-            "Command": {
-                "command": "tar -czf backup.tar.gz /data",
-                "env": {},
-                "dir": null
-            }
+            "type": "command",
+            "command": "tar -czf backup.tar.gz /data",
+            "env": {},
+            "dir": null
         },
         "schedule": "0 2 * * *",
         "enabled": true,
@@ -510,10 +509,10 @@ fn test_task_execution_record_deserialization() {
     let json = r#"{
         "execution_id": "exec_123",
         "task_name": "deploy",
-        "trigger": "Manual",
+        "trigger": "manual",
         "started_at": "2024-01-01T00:00:00Z",
         "finished_at": "2024-01-01T00:05:00Z",
-        "status": "Success",
+        "status": "success",
         "exit_code": 0,
         "pid": 12345,
         "stdout_preview": "Deployment successful",
