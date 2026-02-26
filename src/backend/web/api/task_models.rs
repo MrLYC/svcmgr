@@ -415,8 +415,7 @@ pub struct CreateScheduledTaskRequest {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-    #[serde(flatten)]
-    pub execution_wrapper: ExecutionWrapper,
+    pub execution: TaskExecution,
     pub schedule: String,
     #[serde(default = "default_true")]
     pub enabled: bool,
@@ -424,27 +423,6 @@ pub struct CreateScheduledTaskRequest {
     pub timeout: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub limits: Option<ResourceLimits>,
-}
-
-/// Wrapper to support both full execution object and flat command field
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum ExecutionWrapper {
-    Full { execution: TaskExecution },
-    Flat { command: String },
-}
-
-impl ExecutionWrapper {
-    pub fn to_execution(&self) -> TaskExecution {
-        match self {
-            ExecutionWrapper::Full { execution } => execution.clone(),
-            ExecutionWrapper::Flat { command } => TaskExecution::Command {
-                command: command.clone(),
-                env: std::collections::HashMap::new(),
-                dir: None,
-            },
-        }
-    }
 }
 
 /// 更新定时任务请求（所有字段可选）
@@ -552,9 +530,9 @@ impl CreateScheduledTaskRequest {
             validate_resource_limits(limits)?;
         }
 
-        match self.execution_wrapper.to_execution() {
+        match &self.execution {
             TaskExecution::MiseTask { task, .. } => {
-                validate_task_name(&task)?;
+                validate_task_name(task)?;
             }
             TaskExecution::Command { command, .. } => {
                 if command.trim().is_empty() {

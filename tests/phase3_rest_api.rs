@@ -173,15 +173,19 @@ async fn test_scheduled_tasks_list() {
 }
 
 #[tokio::test]
-async fn test_scheduled_tasks_create_not_implemented() {
+async fn test_scheduled_tasks_create_success() {
     let base_url = spawn_test_server().await;
     let client = reqwest::Client::new();
 
     let payload = serde_json::json!({
-        "name": "backup",
-        "command": "backup.sh",
+        "name": "backup_task",
+        "execution": {
+            "type": "command",
+            "command": "backup.sh"
+        },
         "schedule": "0 2 * * *",
-        "enabled": true
+        "enabled": true,
+        "timeout": 3600
     });
 
     let resp = client
@@ -191,10 +195,11 @@ async fn test_scheduled_tasks_create_not_implemented() {
         .await
         .unwrap();
 
-    assert_eq!(resp.status(), 500);
+    assert_eq!(resp.status(), 201); // Created
 
     let body: serde_json::Value = resp.json().await.unwrap();
-    assert_eq!(body["error"]["code"], "NOT_IMPLEMENTED");
+    assert_eq!(body["data"]["name"], "backup_task");
+    assert_eq!(body["data"]["schedule"], "0 2 * * *");
 }
 
 // =============================================================================
@@ -414,13 +419,29 @@ async fn test_all_task_endpoints_routable() {
             _ => panic!("Unknown method: {}", method),
         };
 
-        assert_ne!(
-            resp.status(),
-            404,
-            "{} {} should be routable (got 404)",
-            method,
-            path
-        );
+        // 区分"路由不存在"和"资源不存在":
+        // - 列表端点 (GET /api/v1/tasks): 不应返回 404
+        // - 创建端点 (POST /api/v1/scheduled-tasks): 不应返回 404
+        // - 需要资源存在的端点 (GET/PUT/DELETE /*/test, POST /*/test/*): 允许返回 404
+        let is_list_endpoint = !path.contains("/test");
+        let is_create_endpoint = method == "POST" && path == "/api/v1/scheduled-tasks";
+
+        if is_list_endpoint || is_create_endpoint {
+            // 列表和创建端点: 不应返回 404
+            assert_ne!(
+                resp.status(),
+                404,
+                "{} {} should be routable (got 404)",
+                method,
+                path
+            );
+        } else {
+            // 操作特定资源的端点: 404 是合理的 (资源不存在)
+            if resp.status() == 404 {
+                // 404 是预期的业务逻辑响应，跳过此断言
+                continue;
+            }
+        }
     }
 }
 

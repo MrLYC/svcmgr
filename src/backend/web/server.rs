@@ -163,8 +163,11 @@ pub struct ErrorResponse {
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         let status = match self.code.as_str() {
-            "RESOURCE_NOT_FOUND" | "SERVICE_NOT_FOUND" | "TASK_NOT_FOUND" => StatusCode::NOT_FOUND,
-            "BAD_REQUEST" | "INVALID_INPUT" => StatusCode::BAD_REQUEST,
+            "RESOURCE_NOT_FOUND"
+            | "SERVICE_NOT_FOUND"
+            | "TASK_NOT_FOUND"
+            | "SCHEDULED_TASK_NOT_FOUND" => StatusCode::NOT_FOUND,
+            "BAD_REQUEST" | "INVALID_INPUT" | "VALIDATION_ERROR" => StatusCode::BAD_REQUEST,
             "CONFLICT" | "ALREADY_EXISTS" => StatusCode::CONFLICT,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         };

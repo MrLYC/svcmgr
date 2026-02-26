@@ -83,7 +83,7 @@ async fn test_run_task_success() {
     });
 
     let resp = client
-        .post(format!("{}/api/v1/tasks/test-task/run", base_url))
+        .post(format!("{}/api/v1/tasks/test_task/run", base_url))
         .json(&payload)
         .send()
         .await
@@ -103,7 +103,7 @@ async fn test_cancel_task_not_implemented() {
     let client = reqwest::Client::new();
 
     let resp = client
-        .delete(format!("{}/api/v1/tasks/test-task/cancel", base_url))
+        .delete(format!("{}/api/v1/tasks/test_task/cancel", base_url))
         .send()
         .await
         .unwrap();
@@ -118,7 +118,7 @@ async fn test_get_task_history_empty() {
     let client = reqwest::Client::new();
 
     let resp = client
-        .get(format!("{}/api/v1/tasks/test-task/history", base_url))
+        .get(format!("{}/api/v1/tasks/test_task/history", base_url))
         .send()
         .await
         .unwrap();
@@ -158,21 +158,16 @@ async fn test_create_scheduled_task_success() {
     let client = reqwest::Client::new();
 
     let payload = serde_json::json!({
-        "name": "backup-task",
+        "name": "backup_task",
         "execution": {
-            "command": {
-                "command": "tar -czf backup.tar.gz /data",
-                "working_dir": "/tmp"
-            }
+            "type": "command",
+            "command": "tar -czf backup.tar.gz /data",
+            "dir": "/tmp"
         },
-        "trigger": {
-            "cron": {
-                "expression": "0 2 * * *",
-                "timezone": "UTC"
-            }
-        },
+        "schedule": "0 2 * * *",
         "enabled": true,
-        "description": "Daily backup"
+        "description": "Daily backup",
+        "timeout": 3600
     });
 
     let resp = client
@@ -187,7 +182,7 @@ async fn test_create_scheduled_task_success() {
 
     let body: serde_json::Value = resp.json().await.unwrap();
     assert!(body.get("data").is_some());
-    assert_eq!(body["data"]["name"], "backup-task");
+    assert_eq!(body["data"]["name"], "backup_task");
 }
 
 #[tokio::test]
@@ -196,20 +191,15 @@ async fn test_create_scheduled_task_invalid_cron() {
     let client = reqwest::Client::new();
 
     let payload = serde_json::json!({
-        "name": "invalid-task",
+        "name": "invalid_task",
         "execution": {
-            "command": {
-                "command": "echo test",
-                "working_dir": "/tmp"
-            }
+            "type": "command",
+            "command": "echo test",
+            "dir": "/tmp"
         },
-        "trigger": {
-            "cron": {
-                "expression": "invalid cron",
-                "timezone": "UTC"
-            }
-        },
-        "enabled": true
+        "schedule": "invalid cron",
+        "enabled": true,
+        "timeout": 3600
     });
 
     let resp = client
@@ -233,20 +223,15 @@ async fn test_get_scheduled_task_success() {
 
     // 先创建一个任务
     let payload = serde_json::json!({
-        "name": "test-task",
+        "name": "test_task",
         "execution": {
-            "command": {
-                "command": "echo hello",
-                "working_dir": "/tmp"
-            }
+            "type": "command",
+            "command": "echo hello",
+            "dir": "/tmp"
         },
-        "trigger": {
-            "cron": {
-                "expression": "0 * * * *",
-                "timezone": "UTC"
-            }
-        },
-        "enabled": true
+        "schedule": "0 * * * *",
+        "enabled": true,
+        "timeout": 3600
     });
 
     client
@@ -258,7 +243,7 @@ async fn test_get_scheduled_task_success() {
 
     // 获取任务
     let resp = client
-        .get(format!("{}/api/v1/scheduled-tasks/test-task", base_url))
+        .get(format!("{}/api/v1/scheduled-tasks/test_task", base_url))
         .send()
         .await
         .unwrap();
@@ -267,7 +252,7 @@ async fn test_get_scheduled_task_success() {
 
     let body: serde_json::Value = resp.json().await.unwrap();
     assert!(body.get("data").is_some());
-    assert_eq!(body["data"]["name"], "test-task");
+    assert_eq!(body["data"]["name"], "test_task");
 }
 
 #[tokio::test]
@@ -277,20 +262,15 @@ async fn test_update_scheduled_task_success() {
 
     // 先创建一个任务
     let create_payload = serde_json::json!({
-        "name": "update-test",
+        "name": "update_test",
         "execution": {
-            "command": {
-                "command": "echo old",
-                "working_dir": "/tmp"
-            }
+            "type": "command",
+            "command": "echo old",
+            "dir": "/tmp"
         },
-        "trigger": {
-            "cron": {
-                "expression": "0 * * * *",
-                "timezone": "UTC"
-            }
-        },
-        "enabled": true
+        "schedule": "0 * * * *",
+        "enabled": true,
+        "timeout": 3600
     });
 
     client
@@ -302,24 +282,13 @@ async fn test_update_scheduled_task_success() {
 
     // 更新任务
     let update_payload = serde_json::json!({
-        "name": "update-test",
-        "execution": {
-            "command": {
-                "command": "echo new",
-                "working_dir": "/tmp"
-            }
-        },
-        "trigger": {
-            "cron": {
-                "expression": "0 2 * * *",
-                "timezone": "UTC"
-            }
-        },
-        "enabled": false
+        "schedule": "0 2 * * *",
+        "enabled": false,
+        "timeout": 3600
     });
 
     let resp = client
-        .put(format!("{}/api/v1/scheduled-tasks/update-test", base_url))
+        .put(format!("{}/api/v1/scheduled-tasks/update_test", base_url))
         .json(&update_payload)
         .send()
         .await
@@ -339,20 +308,15 @@ async fn test_delete_scheduled_task_success() {
 
     // 先创建一个任务
     let payload = serde_json::json!({
-        "name": "delete-test",
+        "name": "delete_test",
         "execution": {
-            "command": {
-                "command": "echo hello",
-                "working_dir": "/tmp"
-            }
+            "type": "command",
+            "command": "echo hello",
+            "dir": "/tmp"
         },
-        "trigger": {
-            "cron": {
-                "expression": "0 * * * *",
-                "timezone": "UTC"
-            }
-        },
-        "enabled": true
+        "schedule": "0 * * * *",
+        "enabled": true,
+        "timeout": 3600
     });
 
     client
@@ -364,16 +328,16 @@ async fn test_delete_scheduled_task_success() {
 
     // 删除任务
     let resp = client
-        .delete(format!("{}/api/v1/scheduled-tasks/delete-test", base_url))
+        .delete(format!("{}/api/v1/scheduled-tasks/delete_test", base_url))
         .send()
         .await
         .unwrap();
 
-    assert_eq!(resp.status(), 200);
+    assert_eq!(resp.status(), 204);
 
     // 验证任务已删除
     let get_resp = client
-        .get(format!("{}/api/v1/scheduled-tasks/delete-test", base_url))
+        .get(format!("{}/api/v1/scheduled-tasks/delete_test", base_url))
         .send()
         .await
         .unwrap();
@@ -388,20 +352,15 @@ async fn test_enable_scheduled_task_success() {
 
     // 先创建一个禁用的任务
     let payload = serde_json::json!({
-        "name": "enable-test",
+        "name": "enable_test",
         "execution": {
-            "command": {
-                "command": "echo hello",
-                "working_dir": "/tmp"
-            }
+            "type": "command",
+            "command": "echo hello",
+            "dir": "/tmp"
         },
-        "trigger": {
-            "cron": {
-                "expression": "0 * * * *",
-                "timezone": "UTC"
-            }
-        },
-        "enabled": false
+        "schedule": "0 * * * *",
+        "enabled": false,
+        "timeout": 3600
     });
 
     client
@@ -414,7 +373,7 @@ async fn test_enable_scheduled_task_success() {
     // 启用任务
     let resp = client
         .post(format!(
-            "{}/api/v1/scheduled-tasks/enable-test/enable",
+            "{}/api/v1/scheduled-tasks/enable_test/enable",
             base_url
         ))
         .send()
@@ -435,20 +394,15 @@ async fn test_disable_scheduled_task_success() {
 
     // 先创建一个启用的任务
     let payload = serde_json::json!({
-        "name": "disable-test",
+        "name": "disable_test",
         "execution": {
-            "command": {
-                "command": "echo hello",
-                "working_dir": "/tmp"
-            }
+            "type": "command",
+            "command": "echo hello",
+            "dir": "/tmp"
         },
-        "trigger": {
-            "cron": {
-                "expression": "0 * * * *",
-                "timezone": "UTC"
-            }
-        },
-        "enabled": true
+        "schedule": "0 * * * *",
+        "enabled": true,
+        "timeout": 3600
     });
 
     client
@@ -461,7 +415,7 @@ async fn test_disable_scheduled_task_success() {
     // 禁用任务
     let resp = client
         .post(format!(
-            "{}/api/v1/scheduled-tasks/disable-test/disable",
+            "{}/api/v1/scheduled-tasks/disable_test/disable",
             base_url
         ))
         .send()
@@ -482,20 +436,15 @@ async fn test_run_scheduled_task_now() {
 
     // 先创建一个任务
     let payload = serde_json::json!({
-        "name": "run-test",
+        "name": "run_test",
         "execution": {
-            "command": {
-                "command": "echo hello",
-                "working_dir": "/tmp"
-            }
+            "type": "command",
+            "command": "echo hello",
+            "dir": "/tmp"
         },
-        "trigger": {
-            "cron": {
-                "expression": "0 * * * *",
-                "timezone": "UTC"
-            }
-        },
-        "enabled": true
+        "schedule": "0 * * * *",
+        "enabled": true,
+        "timeout": 3600
     });
 
     client
@@ -507,7 +456,7 @@ async fn test_run_scheduled_task_now() {
 
     // 立即运行任务
     let resp = client
-        .post(format!("{}/api/v1/scheduled-tasks/run-test/run", base_url))
+        .post(format!("{}/api/v1/scheduled-tasks/run_test/run", base_url))
         .send()
         .await
         .unwrap();

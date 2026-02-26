@@ -294,7 +294,7 @@ async fn create_scheduled_task(
     // 构造 ScheduledTask
     let task = ScheduledTask {
         name: request.name.clone(),
-        execution: request.execution_wrapper.to_execution(),
+        execution: request.execution,
         schedule: request.schedule,
         enabled: request.enabled,
         description: request.description,
