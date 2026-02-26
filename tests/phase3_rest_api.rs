@@ -202,7 +202,9 @@ async fn test_scheduled_tasks_create_not_implemented() {
 // =============================================================================
 
 #[tokio::test]
-async fn test_config_get_not_implemented() {
+/// Test: Config GET endpoint returns full config
+/// Expected: 200 OK with complete config structure
+async fn test_config_get_success() {
     let base_url = spawn_test_server().await;
     let client = reqwest::Client::new();
 
@@ -212,14 +214,17 @@ async fn test_config_get_not_implemented() {
         .await
         .unwrap();
 
-    assert_eq!(resp.status(), 500);
+    assert_eq!(resp.status(), 200);
 
     let body: serde_json::Value = resp.json().await.unwrap();
-    assert_eq!(body["error"]["code"], "NOT_IMPLEMENTED");
+    assert!(body["data"].is_object());
+    // Config should have expected sections
+    assert!(body["data"]["tools"].is_object());
+    assert!(body["data"]["env"].is_object());
 }
 
 #[tokio::test]
-async fn test_config_section_not_found() {
+async fn test_config_section_invalid() {
     let base_url = spawn_test_server().await;
     let client = reqwest::Client::new();
 
@@ -229,10 +234,10 @@ async fn test_config_section_not_found() {
         .await
         .unwrap();
 
-    assert_eq!(resp.status(), 500); // Skeleton阶段: 无数据库,无法判断资源是否存在
+    assert_eq!(resp.status(), 400); // Invalid section name
 
     let body: serde_json::Value = resp.json().await.unwrap();
-    assert_eq!(body["error"]["code"], "NOT_IMPLEMENTED"); // Skeleton阶段返回 NOT_IMPLEMENTED
+    assert_eq!(body["error"]["code"], "INVALID_INPUT"); // Invalid section error
 }
 
 #[tokio::test]

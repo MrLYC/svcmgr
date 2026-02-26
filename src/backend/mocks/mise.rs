@@ -38,6 +38,10 @@ pub struct MiseMock {
     pub workdir: PathBuf,
     /// 服务名称 -> 服务环境变量映射
     pub service_envs: HashMap<String, HashMap<String, String>>,
+    /// 定时任务存储
+    pub scheduled_tasks: HashMap<String, crate::web::api::task_models::ScheduledTask>,
+    /// 服务定义存储
+    pub services: HashMap<String, crate::web::api::service_models::ServiceDefinition>,
 }
 
 impl MiseMock {
@@ -49,6 +53,8 @@ impl MiseMock {
             tasks: HashMap::new(),
             workdir,
             service_envs: HashMap::new(),
+            scheduled_tasks: HashMap::new(),
+            services: HashMap::new(),
         }
     }
 

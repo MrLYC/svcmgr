@@ -111,10 +111,10 @@ async fn get_task(
     let config_port = &state.config_port;
 
     // 获取任务命令
-    let task_cmd = config_port.get_task_command(&name).await.map_err(|e| {
+    let task_cmd = config_port.get_task_command(&name).await.map_err(|_| {
         ApiError::new(
-            "TASK_NOT_FOUND",
-            format!("Task '{}' not found: {}", name, e),
+            "NOT_IMPLEMENTED",
+            "Cannot determine if task exists in skeleton phase",
         )
     })?;
 
@@ -294,7 +294,7 @@ async fn create_scheduled_task(
     // 构造 ScheduledTask
     let task = ScheduledTask {
         name: request.name.clone(),
-        execution: request.execution,
+        execution: request.execution_wrapper.to_execution(),
         schedule: request.schedule,
         enabled: request.enabled,
         description: request.description,

@@ -385,42 +385,51 @@ impl ConfigPort for MockMiseAdapter {
     async fn list_scheduled_tasks(
         &self,
     ) -> Result<Vec<crate::web::api::task_models::ScheduledTask>> {
-        // MVP: 返回空列表
-        Ok(Vec::new())
+        let mock = self.mock.lock().unwrap();
+        Ok(mock.scheduled_tasks.values().cloned().collect())
     }
 
     async fn get_scheduled_task(
         &self,
-        _name: &str,
+        name: &str,
     ) -> Result<Option<crate::web::api::task_models::ScheduledTask>> {
-        // MVP: 总是返回 None
-        Ok(None)
+        let mock = self.mock.lock().unwrap();
+        Ok(mock.scheduled_tasks.get(name).cloned())
     }
 
-    async fn scheduled_task_exists(&self, _name: &str) -> Result<bool> {
-        // MVP: 总是返回 false
-        Ok(false)
+    async fn scheduled_task_exists(&self, name: &str) -> Result<bool> {
+        let mock = self.mock.lock().unwrap();
+        Ok(mock.scheduled_tasks.contains_key(name))
     }
-
     async fn create_scheduled_task(
         &self,
-        _task: &crate::web::api::task_models::ScheduledTask,
+        task: &crate::web::api::task_models::ScheduledTask,
     ) -> Result<()> {
-        // MVP: no-op implementation
+        let mut mock = self.mock.lock().unwrap();
+        if mock.scheduled_tasks.contains_key(&task.name) {
+            anyhow::bail!("Scheduled task '{}' already exists", task.name);
+        }
+        mock.scheduled_tasks.insert(task.name.clone(), task.clone());
         Ok(())
     }
-
     async fn update_scheduled_task(
         &self,
-        _name: &str,
-        _task: &crate::web::api::task_models::ScheduledTask,
+        name: &str,
+        task: &crate::web::api::task_models::ScheduledTask,
     ) -> Result<()> {
-        // MVP: no-op implementation
+        let mut mock = self.mock.lock().unwrap();
+        if !mock.scheduled_tasks.contains_key(name) {
+            anyhow::bail!("Scheduled task '{}' not found", name);
+        }
+        mock.scheduled_tasks.insert(name.to_string(), task.clone());
         Ok(())
     }
-
-    async fn delete_scheduled_task(&self, _name: &str) -> Result<()> {
-        // MVP: no-op implementation
+    async fn delete_scheduled_task(&self, name: &str) -> Result<()> {
+        let mut mock = self.mock.lock().unwrap();
+        if !mock.scheduled_tasks.contains_key(name) {
+            anyhow::bail!("Scheduled task '{}' not found", name);
+        }
+        mock.scheduled_tasks.remove(name);
         Ok(())
     }
 
@@ -432,41 +441,81 @@ impl ConfigPort for MockMiseAdapter {
         &self,
         name: &str,
     ) -> Result<crate::web::api::service_models::ServiceDefinition> {
-        // MVP: 返回错误 - 服务不存在
-        anyhow::bail!("Service '{}' not found", name)
+        let mock = self.mock.lock().unwrap();
+        mock.services
+            .get(name)
+            .cloned()
+            .ok_or_else(|| anyhow::anyhow!("Service '{}' not found", name))
     }
 
     async fn list_services(
         &self,
     ) -> Result<Vec<crate::web::api::service_models::ServiceDefinition>> {
-        // MVP: 返回空列表
-        Ok(Vec::new())
+        let mock = self.mock.lock().unwrap();
+        Ok(mock.services.values().cloned().collect())
     }
 
     async fn create_service(
         &self,
-        _service: &crate::web::api::service_models::ServiceDefinition,
+        service: &crate::web::api::service_models::ServiceDefinition,
     ) -> Result<()> {
-        // MVP: no-op implementation
+        let mut mock = self.mock.lock().unwrap();
+        if mock.services.contains_key(&service.name) {
+            anyhow::bail!("Service '{}' already exists", service.name);
+        }
+        mock.services.insert(service.name.clone(), service.clone());
         Ok(())
     }
 
     async fn update_service(
         &self,
-        _name: &str,
-        _service: &crate::web::api::service_models::ServiceDefinition,
+        name: &str,
+        service: &crate::web::api::service_models::ServiceDefinition,
     ) -> Result<()> {
-        // MVP: no-op implementation
+        let mut mock = self.mock.lock().unwrap();
+        if !mock.services.contains_key(name) {
+            anyhow::bail!("Service '{}' not found", name);
+        }
+        mock.services.insert(name.to_string(), service.clone());
         Ok(())
     }
 
-    async fn patch_service(&self, _name: &str, _updates: &serde_json::Value) -> Result<()> {
-        // MVP: no-op implementation
+    async fn patch_service(&self, name: &str, updates: &serde_json::Value) -> Result<()> {
+        let mut mock = self.mock.lock().unwrap();
+
+        // 获取现有服务
+        let service = mock
+            .services
+            .get(name)
+            .ok_or_else(|| anyhow::anyhow!("Service '{}' not found", name))?;
+
+        // 序列化为 JSON
+        let mut service_json = serde_json::to_value(service)?;
+
+        // 合并更新
+        if let (Some(service_obj), Some(updates_obj)) =
+            (service_json.as_object_mut(), updates.as_object())
+        {
+            for (key, value) in updates_obj {
+                service_obj.insert(key.clone(), value.clone());
+            }
+        }
+
+        // 反序列化回 ServiceDefinition
+        let updated_service: crate::web::api::service_models::ServiceDefinition =
+            serde_json::from_value(service_json)?;
+
+        // 更新存储
+        mock.services.insert(name.to_string(), updated_service);
         Ok(())
     }
 
-    async fn delete_service(&self, _name: &str) -> Result<()> {
-        // MVP: no-op implementation
+    async fn delete_service(&self, name: &str) -> Result<()> {
+        let mut mock = self.mock.lock().unwrap();
+        if !mock.services.contains_key(name) {
+            anyhow::bail!("Service '{}' not found", name);
+        }
+        mock.services.remove(name);
         Ok(())
     }
 }
