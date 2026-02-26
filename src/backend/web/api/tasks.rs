@@ -111,11 +111,13 @@ async fn get_task(
     let config_port = &state.config_port;
 
     // 获取任务命令
-    let task_cmd = config_port.get_task_command(&name).await.map_err(|_| {
-        ApiError::new(
-            "NOT_IMPLEMENTED",
-            "Cannot determine if task exists in skeleton phase",
-        )
+    let task_cmd = config_port.get_task_command(&name).await.map_err(|e| {
+        // 检查是否为任务不存在错误
+        if e.to_string().to_lowercase().contains("not found") {
+            ApiError::not_found(format!("Task '{}'", name))
+        } else {
+            ApiError::internal_error(e.to_string())
+        }
     })?;
 
     // 构造 TaskDefinition

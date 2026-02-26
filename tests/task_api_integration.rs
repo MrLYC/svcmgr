@@ -103,13 +103,13 @@ async fn test_cancel_task_not_implemented() {
     let client = reqwest::Client::new();
 
     let resp = client
-        .delete(format!("{}/api/v1/tasks/test_task/cancel", base_url))
+        .post(format!("{}/api/v1/tasks/test_task/cancel", base_url))
         .send()
         .await
         .unwrap();
 
     // cancel_task 是 MVP 实现,返回成功但不执行实际取消
-    assert_eq!(resp.status(), 200);
+    assert_eq!(resp.status(), 204);
 }
 
 #[tokio::test]
