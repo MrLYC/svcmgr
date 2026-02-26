@@ -78,7 +78,7 @@ fn test_config_with_env() {
 
 #[test]
 fn test_config_section_enum() {
-    let sections = vec![
+    let sections = [
         ConfigSection::Tools,
         ConfigSection::Env,
         ConfigSection::Tasks,
@@ -227,7 +227,7 @@ fn test_validation_result_with_errors() {
 
 #[test]
 fn test_validation_error_kinds() {
-    let kinds = vec![
+    let kinds = [
         ValidationErrorKind::Syntax,
         ValidationErrorKind::Type,
         ValidationErrorKind::MissingField,

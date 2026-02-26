@@ -396,7 +396,7 @@ async fn test_validate_config_port_conflict() {
     assert!(body["data"]["errors"].is_array());
     // 应该有端口冲突错误
     let errors = body["data"]["errors"].as_array().unwrap();
-    assert!(errors.len() > 0);
+    assert!(!errors.is_empty());
 }
 
 // =============================================================================

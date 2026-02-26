@@ -363,7 +363,7 @@ async fn get_config_section(
 ) -> Result<Json<ApiResponse<JsonValue>>, ApiError> {
     let section = ConfigSection::parse(&section_str).ok_or_else(|| {
         ApiError::new(
-            "INVALID_SECTION",
+            "INVALID_INPUT",
             format!("Invalid config section: {}", section_str),
         )
     })?;
@@ -418,7 +418,7 @@ async fn patch_config_section(
 ) -> Result<Json<ApiResponse<JsonValue>>, ApiError> {
     let section = ConfigSection::parse(&section_str).ok_or_else(|| {
         ApiError::new(
-            "INVALID_SECTION",
+            "INVALID_INPUT",
             format!("Invalid config section: {}", section_str),
         )
     })?;

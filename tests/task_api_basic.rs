@@ -332,7 +332,7 @@ async fn test_scheduled_task_exists() {
         last_execution: None,
     };
 
-    assert!(adapter.scheduled_task_exists("backup").await.unwrap() == false);
+    assert!(!adapter.scheduled_task_exists("backup").await.unwrap());
 
     adapter.create_scheduled_task(&task).await.unwrap();
 
