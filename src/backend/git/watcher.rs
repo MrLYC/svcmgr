@@ -1,5 +1,5 @@
-use super::GitError;
 use super::versioning::GitVersioning;
+use super::GitError;
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;

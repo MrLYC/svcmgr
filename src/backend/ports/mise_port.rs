@@ -199,7 +199,7 @@ pub trait ConfigPort: TaskPort + Send + Sync {
     async fn get_task_envs(&self) -> Result<HashMap<String, HashMap<String, String>>>;
 
     async fn set_env_var(&self, key: &str, value: &str, scope: &crate::env::EnvScope)
-    -> Result<()>;
+        -> Result<()>;
 
     async fn delete_env_var(&self, key: &str, scope: &crate::env::EnvScope) -> Result<()>;
 

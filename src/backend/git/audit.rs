@@ -1,4 +1,4 @@
-use super::{CommitInfo, GitError, versioning::GitVersioning};
+use super::{versioning::GitVersioning, CommitInfo, GitError};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -47,29 +47,29 @@ impl ConfigAudit {
     /// 检查提交是否匹配过滤条件
     fn matches_filter(commit: &CommitInfo, filter: &AuditFilter) -> bool {
         // 时间范围过滤
-        if let Some(after) = filter.after
-            && commit.time < after
-        {
-            return false;
+        if let Some(after) = filter.after {
+            if commit.time < after {
+                return false;
+            }
         }
-        if let Some(before) = filter.before
-            && commit.time > before
-        {
-            return false;
+        if let Some(before) = filter.before {
+            if commit.time > before {
+                return false;
+            }
         }
 
         // 作者过滤
-        if let Some(ref author) = filter.author
-            && !commit.author.contains(author)
-        {
-            return false;
+        if let Some(ref author) = filter.author {
+            if !commit.author.contains(author) {
+                return false;
+            }
         }
 
         // 消息过滤
-        if let Some(ref message_pattern) = filter.message_pattern
-            && !commit.message.contains(message_pattern)
-        {
-            return false;
+        if let Some(ref message_pattern) = filter.message_pattern {
+            if !commit.message.contains(message_pattern) {
+                return false;
+            }
         }
 
         true

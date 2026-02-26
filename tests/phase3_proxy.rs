@@ -9,7 +9,7 @@
 //! - 动态后端注册/注销
 //! - X-Forwarded-* 头部转发
 
-use axum::{Router, body::Body, extract::Request, http::StatusCode, routing::any};
+use axum::{body::Body, extract::Request, http::StatusCode, routing::any, Router};
 use serde_json::json;
 use std::net::SocketAddr;
 use svcmgr::{config::models::RouteConfig, web::proxy::ProxyService};

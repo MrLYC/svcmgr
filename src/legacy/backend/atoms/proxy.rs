@@ -359,33 +359,34 @@ impl NginxManager {
 
         while let Some(line) = lines.next() {
             let trimmed = line.trim();
-            if trimmed.starts_with("location /tty/")
-                && trimmed.ends_with('{')
-                && let Some(name_part) = trimmed.strip_prefix("location /tty/")
-                && let Some(name) = name_part.strip_suffix("/ {")
-            {
-                let name = name.trim().to_string();
-                let mut port = 0u16;
+            if trimmed.starts_with("location /tty/") && trimmed.ends_with('{') {
+                if let Some(name_part) = trimmed.strip_prefix("location /tty/") {
+                    if let Some(name) = name_part.strip_suffix("/ {") {
+                        let name = name.trim().to_string();
+                        let mut port = 0u16;
 
-                for inner_line in lines.by_ref() {
-                    let inner_trimmed = inner_line.trim();
-                    if inner_trimmed == "}" {
-                        break;
-                    }
+                        for inner_line in lines.by_ref() {
+                            let inner_trimmed = inner_line.trim();
+                            if inner_trimmed == "}" {
+                                break;
+                            }
 
-                    if inner_trimmed.starts_with("proxy_pass http://127.0.0.1:")
-                        && let Some(port_part) =
-                            inner_trimmed.strip_prefix("proxy_pass http://127.0.0.1:")
-                        && let Some(port_str) = port_part.split('/').next()
-                    {
-                        port = port_str.parse().unwrap_or(0);
+                            if inner_trimmed.starts_with("proxy_pass http://127.0.0.1:") {
+                                if let Some(port_part) =
+                                    inner_trimmed.strip_prefix("proxy_pass http://127.0.0.1:")
+                                {
+                                    if let Some(port_str) = port_part.split('/').next() {
+                                        port = port_str.parse().unwrap_or(0);
+                                    }
+                                }
+                            }
+                        }
+
+                        if port > 0 {
+                            routes.push(TtyRoute { name, port });
+                        }
                     }
                 }
-
-                if port > 0 {
-                    routes.push(TtyRoute { name, port });
-                }
-            }
         }
 
         routes
@@ -489,8 +490,10 @@ stop_timeout_sec = 10
         let running = pid_file.exists();
         let mut pid = None;
 
-        if running && let Ok(pid_content) = fs::read_to_string(&pid_file).await {
-            pid = pid_content.trim().parse().ok();
+        if running {
+            if let Ok(pid_content) = fs::read_to_string(&pid_file).await {
+                pid = pid_content.trim().parse().ok();
+            }
         }
 
         Ok(NginxStatus {

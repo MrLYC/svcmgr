@@ -5,7 +5,7 @@
 use std::path::PathBuf;
 use svcmgr::adapters::mock::MockMiseAdapter;
 use svcmgr::mocks::mise::MiseMock;
-use svcmgr::ports::{MiseVersion, mise_port::ConfigPort};
+use svcmgr::ports::{mise_port::ConfigPort, MiseVersion};
 use svcmgr::web::api::service_models::*;
 use tempfile::TempDir;
 

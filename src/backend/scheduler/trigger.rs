@@ -2,7 +2,7 @@
 //!
 //! Phase 2.1: Unified scheduler engine core
 
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use chrono::{DateTime, Local};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;

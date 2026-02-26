@@ -4,11 +4,11 @@
 // with support for hard dependencies (Requires), soft ordering (After),
 // and mutual exclusion (Conflicts).
 
-use anyhow::{Result, anyhow};
-use petgraph::Direction;
+use anyhow::{anyhow, Result};
 use petgraph::algo::tarjan_scc;
 use petgraph::graph::{DiGraph, NodeIndex};
 use petgraph::visit::EdgeRef;
+use petgraph::Direction;
 use std::collections::{HashMap, HashSet};
 
 /// Dependency type defines the relationship between tasks
@@ -451,20 +451,16 @@ mod tests {
 
         // Dependency not satisfied
         let empty = HashSet::new();
-        assert!(
-            graph
-                .check_dependencies_satisfied("webapp", &empty)
-                .is_err()
-        );
+        assert!(graph
+            .check_dependencies_satisfied("webapp", &empty)
+            .is_err());
 
         // Dependency satisfied
         let mut running = HashSet::new();
         running.insert("database".to_string());
-        assert!(
-            graph
-                .check_dependencies_satisfied("webapp", &running)
-                .is_ok()
-        );
+        assert!(graph
+            .check_dependencies_satisfied("webapp", &running)
+            .is_ok());
     }
 
     #[test]

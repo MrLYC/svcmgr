@@ -1,4 +1,4 @@
-use super::{GitError, versioning::GitVersioning};
+use super::{versioning::GitVersioning, GitError};
 use git2::Oid;
 use std::sync::Arc;
 use std::time::Instant;

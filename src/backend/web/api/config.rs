@@ -13,9 +13,9 @@
 // - POST   /api/v1/config/import         - 导入配置并应用
 
 use axum::{
-    Json, Router,
     extract::{Path, Query, State},
     routing::{get, post},
+    Json, Router,
 };
 use chrono::{DateTime, Utc};
 use serde_json::Value as JsonValue;
@@ -673,10 +673,10 @@ async fn get_config_history(
             .unwrap_or_default();
 
         // 过滤: 如果指定了 file,只返回涉及该文件的提交
-        if let Some(file_filter) = &params.file
-            && !files.iter().any(|f| f.contains(file_filter))
-        {
-            continue;
+        if let Some(file_filter) = &params.file {
+            if !files.iter().any(|f| f.contains(file_filter)) {
+                continue;
+            }
         }
 
         history.push(ConfigHistory {

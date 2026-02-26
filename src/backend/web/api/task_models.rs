@@ -618,31 +618,31 @@ pub fn validate_timeout(timeout: u64) -> Result<(), String> {
 
 /// 验证资源限制
 pub fn validate_resource_limits(limits: &ResourceLimits) -> Result<(), String> {
-    if let Some(memory) = limits.memory
-        && memory < 1_048_576
-    {
-        return Err(format!(
-            "memory limit too small: {} bytes (min 1MB = 1048576 bytes)",
-            memory
-        ));
+    if let Some(memory) = limits.memory {
+        if memory < 1_048_576 {
+            return Err(format!(
+                "memory limit too small: {} bytes (min 1MB = 1048576 bytes)",
+                memory
+            ));
+        }
     }
 
-    if let Some(cpu_quota) = limits.cpu_quota
-        && !(1000..=100000).contains(&cpu_quota)
-    {
-        return Err(format!(
-            "cpu_quota out of range: {} (must be 1000-100000 for 1%-100% CPU)",
-            cpu_quota
-        ));
+    if let Some(cpu_quota) = limits.cpu_quota {
+        if !(1000..=100000).contains(&cpu_quota) {
+            return Err(format!(
+                "cpu_quota out of range: {} (must be 1000-100000 for 1%-100% CPU)",
+                cpu_quota
+            ));
+        }
     }
 
-    if let Some(cpu_weight) = limits.cpu_weight
-        && !(1..=10000).contains(&cpu_weight)
-    {
-        return Err(format!(
-            "cpu_weight out of range: {} (must be 1-10000)",
-            cpu_weight
-        ));
+    if let Some(cpu_weight) = limits.cpu_weight {
+        if !(1..=10000).contains(&cpu_weight) {
+            return Err(format!(
+                "cpu_weight out of range: {} (must be 1-10000)",
+                cpu_weight
+            ));
+        }
     }
 
     Ok(())

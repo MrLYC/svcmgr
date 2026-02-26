@@ -229,28 +229,28 @@ impl ConfigPort for MockMiseAdapter {
         if let Some(tasks) = value.get("tasks").and_then(|v| v.as_table()) {
             mock.tasks.clear();
             for (name, task_value) in tasks {
-                if let Some(task_table) = task_value.as_table()
-                    && let Some(run) = task_table.get("run").and_then(|v| v.as_str())
-                {
-                    let task = TaskDef {
-                        run: run.to_string(),
-                        description: task_table
-                            .get("description")
-                            .and_then(|v| v.as_str())
-                            .map(String::from),
-                        depends: task_table
-                            .get("depends")
-                            .and_then(|v| v.as_array())
-                            .map(|arr| {
-                                arr.iter()
-                                    .filter_map(|v| v.as_str())
-                                    .map(String::from)
-                                    .collect()
-                            })
-                            .unwrap_or_default(),
-                        env: HashMap::new(), // Simplified for mock
-                    };
-                    mock.tasks.insert(name.clone(), task);
+                if let Some(task_table) = task_value.as_table() {
+                    if let Some(run) = task_table.get("run").and_then(|v| v.as_str()) {
+                        let task = TaskDef {
+                            run: run.to_string(),
+                            description: task_table
+                                .get("description")
+                                .and_then(|v| v.as_str())
+                                .map(String::from),
+                            depends: task_table
+                                .get("depends")
+                                .and_then(|v| v.as_array())
+                                .map(|arr| {
+                                    arr.iter()
+                                        .filter_map(|v| v.as_str())
+                                        .map(String::from)
+                                        .collect()
+                                })
+                                .unwrap_or_default(),
+                            env: HashMap::new(), // Simplified for mock
+                        };
+                        mock.tasks.insert(name.clone(), task);
+                    }
                 }
             }
         }
@@ -496,11 +496,9 @@ mod tests {
         adapter.install("python", "3.12").await.unwrap();
         let tools = adapter.list_installed().await.unwrap();
         assert_eq!(tools.len(), 3);
-        assert!(
-            tools
-                .iter()
-                .any(|t| t.name == "python" && t.version == "3.12")
-        );
+        assert!(tools
+            .iter()
+            .any(|t| t.name == "python" && t.version == "3.12"));
 
         // Test remove
         adapter.remove("node", "20").await.unwrap();

@@ -85,12 +85,10 @@ async fn test_circular_dependency_rejected() -> Result<()> {
     // Register task_b (should fail with circular dependency error)
     let result = engine.register_task(task_b);
     assert!(result.is_err());
-    assert!(
-        result
-            .unwrap_err()
-            .to_string()
-            .contains("Circular dependency detected")
-    );
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("Circular dependency detected"));
 
     Ok(())
 }
@@ -121,12 +119,10 @@ async fn test_conflict_detection() -> Result<()> {
     // Try to start custom-proxy (should fail due to conflict)
     let result: Result<()> = engine.start_task("custom-proxy").await;
     assert!(result.is_err());
-    assert!(
-        result
-            .unwrap_err()
-            .to_string()
-            .contains("conflicts with running task")
-    );
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("conflicts with running task"));
 
     Ok(())
 }

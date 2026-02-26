@@ -18,7 +18,7 @@
 //! 即使在 Linux 平台，如果 cgroups v2 不可用（未挂载、权限不足等），
 //! 模块会自动禁用并记录警告，不阻止服务正常运行。
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{anyhow, Context, Result};
 use std::fs;
 use std::path::{Path, PathBuf};
 

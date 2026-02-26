@@ -95,12 +95,10 @@ fn test_commit_without_staged_changes() {
     // 尝试在没有暂存变更时提交
     let result = git.commit("feat: nothing", None);
     assert!(result.is_err());
-    assert!(
-        result
-            .unwrap_err()
-            .to_string()
-            .contains("No staged changes")
-    );
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("No staged changes"));
 }
 
 #[test]
@@ -234,12 +232,10 @@ fn test_invalid_author_signature() {
     // 使用无效格式的作者
     let result = git.commit("feat: invalid", Some("InvalidFormat"));
     assert!(result.is_err());
-    assert!(
-        result
-            .unwrap_err()
-            .to_string()
-            .contains("Invalid signature")
-    );
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("Invalid signature"));
 }
 
 // ============================================================

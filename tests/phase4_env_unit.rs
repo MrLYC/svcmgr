@@ -93,11 +93,9 @@ fn test_parse_env_file_invalid_format() {
 
     let result = parse_env_file(content);
     assert!(result.is_err());
-    assert!(
-        result
-            .unwrap_err()
-            .contains("Invalid .env format at line 1")
-    );
+    assert!(result
+        .unwrap_err()
+        .contains("Invalid .env format at line 1"));
 }
 
 #[test]

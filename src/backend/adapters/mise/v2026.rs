@@ -102,18 +102,18 @@ impl DependencyPort for MiseV2026Adapter {
     /// List installed tools (Layer 1 preferred, Layer 2 fallback)
     async fn list_installed(&self) -> Result<Vec<ToolInfo>> {
         // Try Layer 1: Parse config file
-        if let Ok(config) = self.load_mise_config()
-            && !config.tools.is_empty()
-        {
-            return Ok(config
-                .tools
-                .iter()
-                .map(|(name, version)| ToolInfo {
-                    name: name.clone(),
-                    version: version.clone(),
-                    source: "config".to_string(),
-                })
-                .collect());
+        if let Ok(config) = self.load_mise_config() {
+            if !config.tools.is_empty() {
+                return Ok(config
+                    .tools
+                    .iter()
+                    .map(|(name, version)| ToolInfo {
+                        name: name.clone(),
+                        version: version.clone(),
+                        source: "config".to_string(),
+                    })
+                    .collect());
+            }
         }
 
         // Layer 2 fallback: Call mise ls --json
@@ -198,19 +198,19 @@ impl TaskPort for MiseV2026Adapter {
     /// List tasks (Layer 1 preferred, Layer 2 fallback)
     async fn list_tasks(&self) -> Result<Vec<TaskInfo>> {
         // Try Layer 1: Parse config file
-        if let Ok(config) = self.load_mise_config()
-            && !config.tasks.is_empty()
-        {
-            return Ok(config
-                .tasks
-                .iter()
-                .map(|(name, task)| TaskInfo {
-                    name: name.clone(),
-                    description: task.description.clone(),
-                    command: task.run.clone(),
-                    depends: task.depends.clone(),
-                })
-                .collect());
+        if let Ok(config) = self.load_mise_config() {
+            if !config.tasks.is_empty() {
+                return Ok(config
+                    .tasks
+                    .iter()
+                    .map(|(name, task)| TaskInfo {
+                        name: name.clone(),
+                        description: task.description.clone(),
+                        command: task.run.clone(),
+                        depends: task.depends.clone(),
+                    })
+                    .collect());
+            }
         }
 
         // Layer 2 fallback: Call mise tasks ls --json
@@ -285,13 +285,13 @@ impl ConfigPort for MiseV2026Adapter {
 
         // conf.d directory
         let confd_dir = home.join(".config/mise/conf.d");
-        if confd_dir.is_dir()
-            && let Ok(entries) = std::fs::read_dir(&confd_dir)
-        {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.is_file() && path.extension().is_some_and(|ext| ext == "toml") {
-                    files.push(path);
+        if confd_dir.is_dir() {
+            if let Ok(entries) = std::fs::read_dir(&confd_dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.is_file() && path.extension().is_some_and(|ext| ext == "toml") {
+                        files.push(path);
+                    }
                 }
             }
         }

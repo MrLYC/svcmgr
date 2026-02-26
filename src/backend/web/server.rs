@@ -1,11 +1,11 @@
 use crate::git::versioning::GitVersioning;
 use crate::ports::mise_port::ConfigPort;
 use axum::{
-    Json, Router,
     extract::Request,
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::get,
+    Json, Router,
 };
 use serde::{Deserialize, Serialize};
 use std::{net::SocketAddr, path::PathBuf, sync::Arc};
@@ -13,7 +13,7 @@ use tower_http::{
     cors::CorsLayer,
     trace::{DefaultMakeSpan, TraceLayer},
 };
-use tracing::{Level, info};
+use tracing::{info, Level};
 
 /// HTTP 服务器配置
 #[derive(Debug, Clone, Deserialize, Serialize)]

@@ -107,10 +107,10 @@ async fn add_task(
     println!("Crontab 任务 {} 创建成功。", task_id);
 
     // 显示下次运行时间
-    if let Ok(next_runs) = manager.get_next_runs(&task_id, 1)
-        && let Some(next) = next_runs.first()
-    {
-        println!("下次运行时间: {}", next.format("%Y-%m-%d %H:%M:%S"));
+    if let Ok(next_runs) = manager.get_next_runs(&task_id, 1) {
+        if let Some(next) = next_runs.first() {
+            println!("下次运行时间: {}", next.format("%Y-%m-%d %H:%M:%S"));
+        }
     }
 
     Ok(())

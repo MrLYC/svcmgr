@@ -818,12 +818,12 @@ impl SupervisorManager {
         let mut entries = tokio::fs::read_dir(&self.service_dir).await?;
         while let Some(entry) = entries.next_entry().await? {
             let path = entry.path();
-            if path.extension().is_some_and(|ext| ext == "toml")
-                && let Some(stem) = path.file_stem()
-            {
-                let name = stem.to_string_lossy().to_string();
-                if name != "cron-tasks" {
-                    names.push(name);
+            if path.extension().is_some_and(|ext| ext == "toml") {
+                if let Some(stem) = path.file_stem() {
+                    let name = stem.to_string_lossy().to_string();
+                    if name != "cron-tasks" {
+                        names.push(name);
+                    }
                 }
             }
         }
@@ -833,20 +833,19 @@ impl SupervisorManager {
     /// Check if a managed process is still alive, update state accordingly
     async fn refresh_process_state(&self, name: &str) {
         let mut procs = self.processes.write().await;
-        if let Some(state) = procs.get_mut(name)
-            && let Some(ref mut child) = state.child
-        {
-            match child.try_wait() {
-                Ok(Some(exit_status)) => {
-                    state.active_state = if exit_status.success() {
-                        ActiveState::Inactive
-                    } else {
-                        ActiveState::Failed
-                    };
-                    state.sub_state = format!("exited ({})", exit_status.code().unwrap_or(-1));
-                    state.pid = None;
-                    state.child = None;
-                }
+        if let Some(state) = procs.get_mut(name) {
+            if let Some(ref mut child) = state.child {
+                match child.try_wait() {
+                    Ok(Some(exit_status)) => {
+                        state.active_state = if exit_status.success() {
+                            ActiveState::Inactive
+                        } else {
+                            ActiveState::Failed
+                        };
+                        state.sub_state = format!("exited ({})", exit_status.code().unwrap_or(-1));
+                        state.pid = None;
+                        state.child = None;
+                    }
                 Ok(None) => {
                     state.active_state = ActiveState::Active;
                     state.sub_state = "running".to_string();

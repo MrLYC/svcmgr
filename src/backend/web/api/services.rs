@@ -14,9 +14,9 @@
 // - GET    /api/v1/services/{name}/status  - 获取服务状态
 
 use axum::{
-    Json, Router,
     extract::{Path, Query},
     routing::{get, post},
+    Json, Router,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

@@ -153,10 +153,10 @@ impl MiseMock {
         let mut env = self.env.clone();
 
         // 如果指定了任务，添加任务特定的环境变量
-        if let Some(name) = task_name
-            && let Some(task) = self.tasks.get(name)
-        {
-            env.extend(task.env.clone());
+        if let Some(name) = task_name {
+            if let Some(task) = self.tasks.get(name) {
+                env.extend(task.env.clone());
+            }
         }
 
         env
@@ -318,12 +318,10 @@ mod tests {
 
         let result = mock.resolve_task_dependencies("a");
         assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("Circular dependency")
-        );
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Circular dependency"));
     }
 
     #[test]

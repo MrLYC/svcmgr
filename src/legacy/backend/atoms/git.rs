@@ -137,23 +137,24 @@ impl GitAtom {
             let commit = repo.find_commit(oid)?;
 
             let mut files = Vec::new();
-            if let Ok(tree) = commit.tree()
-                && let Some(parent) = commit.parent(0).ok()
-                && let Ok(parent_tree) = parent.tree()
-            {
-                let diff = repo.diff_tree_to_tree(Some(&parent_tree), Some(&tree), None)?;
+            if let Ok(tree) = commit.tree() {
+                if let Some(parent) = commit.parent(0).ok() {
+                    if let Ok(parent_tree) = parent.tree() {
+                        let diff = repo.diff_tree_to_tree(Some(&parent_tree), Some(&tree), None)?;
 
-                diff.foreach(
-                    &mut |delta, _| {
-                        if let Some(path) = delta.new_file().path() {
-                            files.push(path.to_string_lossy().to_string());
-                        }
-                        true
-                    },
-                    None,
-                    None,
-                    None,
-                )?;
+                        diff.foreach(
+                            &mut |delta, _| {
+                                if let Some(path) = delta.new_file().path() {
+                                    files.push(path.to_string_lossy().to_string());
+                                }
+                                true
+                            },
+                            None,
+                            None,
+                            None,
+                        )?;
+                    }
+                }
             }
 
             commits.push(CommitInfo {

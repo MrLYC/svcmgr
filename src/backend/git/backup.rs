@@ -1,4 +1,4 @@
-use super::{GitError, versioning::GitVersioning};
+use super::{versioning::GitVersioning, GitError};
 use std::{
     path::{Path, PathBuf},
     sync::Arc,

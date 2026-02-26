@@ -478,23 +478,23 @@ impl SvcmgrConfig {
             }
 
             // Validate cron expression
-            if let Some(cron_expr) = &service.cron
-                && let Err(e) = cron::Schedule::from_str(cron_expr)
-            {
-                errors.push(format!(
-                    "Service '{}' has invalid cron expression '{}': {}",
-                    name, cron_expr, e
-                ));
+            if let Some(cron_expr) = &service.cron {
+                if let Err(e) = cron::Schedule::from_str(cron_expr) {
+                    errors.push(format!(
+                        "Service '{}' has invalid cron expression '{}': {}",
+                        name, cron_expr, e
+                    ));
+                }
             }
 
             // Validate CPU percentage
-            if let Some(cpu) = service.cpu_max_percent
-                && cpu > 100
-            {
-                errors.push(format!(
-                    "Service '{}' has invalid cpu_max_percent {}, must be <= 100",
-                    name, cpu
-                ));
+            if let Some(cpu) = service.cpu_max_percent {
+                if cpu > 100 {
+                    errors.push(format!(
+                        "Service '{}' has invalid cpu_max_percent {}, must be <= 100",
+                        name, cpu
+                    ));
+                }
             }
         }
 

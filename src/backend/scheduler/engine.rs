@@ -6,13 +6,13 @@ use super::dependencies::{DependencyGraph, DependencyType};
 use super::trigger::{EventType, RestartBackoff, RestartPolicy, RestartTracker, Trigger};
 use crate::events::EventBus;
 use crate::runtime::ProcessHandle;
-use anyhow::{Context, Result, anyhow};
+use anyhow::{anyhow, Context, Result};
 use chrono::Local;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
-use tokio::time::{Interval, interval_at, sleep};
+use tokio::time::{interval_at, sleep, Interval};
 
 /// Task execution method
 #[derive(Debug, Clone)]
@@ -310,10 +310,10 @@ impl SchedulerEngine {
         }
 
         // Initialize cron trigger's next_tick
-        if let Some(task) = self.tasks.get_mut(&name)
-            && let Trigger::Cron { .. } = &mut task.trigger
-        {
-            task.trigger.compute_next_tick()?;
+        if let Some(task) = self.tasks.get_mut(&name) {
+            if let Trigger::Cron { .. } = &mut task.trigger {
+                task.trigger.compute_next_tick()?;
+            }
         }
 
         Ok(())
@@ -414,8 +414,8 @@ impl SchedulerEngine {
 
                     for (name, task) in self.tasks.iter_mut() {
                         // Only check running tasks with health check configured
-                        if let TaskState::Running { started_at, .. } = task.state
-                            && let Some(ref check) = task.health_check {
+                        if let TaskState::Running { started_at, .. } = task.state {
+                            if let Some(ref check) = task.health_check {
                                 // Check if enough time has passed since startup
                                 let time_since_start = now.duration_since(started_at);
 
@@ -448,6 +448,7 @@ impl SchedulerEngine {
                                         }
                                     }
                                 }
+                            }
                         }
 
                     }
@@ -490,12 +491,12 @@ impl SchedulerEngine {
         let mut due_tasks = Vec::new();
 
         for (name, task) in self.tasks.iter_mut() {
-            if let Trigger::Cron { .. } = &task.trigger
-                && task.trigger.should_fire(now)
-            {
-                due_tasks.push(name.clone());
-                // Compute next tick
-                task.trigger.compute_next_tick()?;
+            if let Trigger::Cron { .. } = &task.trigger {
+                if task.trigger.should_fire(now) {
+                    due_tasks.push(name.clone());
+                    // Compute next tick
+                    task.trigger.compute_next_tick()?;
+                }
             }
         }
 
@@ -529,10 +530,10 @@ impl SchedulerEngine {
             .tasks
             .iter()
             .filter_map(|(name, task)| {
-                if let Trigger::Event { event_type } = &task.trigger
-                    && event_type == &event
-                {
-                    return Some(name.clone());
+                if let Trigger::Event { event_type } = &task.trigger {
+                    if event_type == &event {
+                        return Some(name.clone());
+                    }
                 }
                 None
             })
@@ -569,11 +570,12 @@ impl SchedulerEngine {
         let mut exited_tasks = Vec::new();
 
         for (name, task) in self.tasks.iter_mut() {
-            if let TaskState::Running { .. } = task.state
-                && let Some(process) = &mut task.process
-                && !process.is_running()
-            {
-                exited_tasks.push(name.clone());
+            if let TaskState::Running { .. } = task.state {
+                if let Some(process) = &mut task.process {
+                    if !process.is_running() {
+                        exited_tasks.push(name.clone());
+                    }
+                }
             }
         }
 
@@ -736,12 +738,12 @@ impl SchedulerEngine {
     /// Start a task manually
     pub async fn start_task(&mut self, task_name: &str) -> Result<()> {
         // Reset fatal state if present
-        if let Some(task) = self.tasks.get_mut(task_name)
-            && matches!(task.state, TaskState::Fatal { .. })
-        {
-            task.state = TaskState::Pending;
-            task.tracker.reset();
-            task.backoff.reset();
+        if let Some(task) = self.tasks.get_mut(task_name) {
+            if matches!(task.state, TaskState::Fatal { .. }) {
+                task.state = TaskState::Pending;
+                task.tracker.reset();
+                task.backoff.reset();
+            }
         }
 
         self.spawn_task(task_name).await

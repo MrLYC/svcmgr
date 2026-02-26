@@ -5,10 +5,10 @@
 //! - Subscribe to all events (receive via channel)
 //! - Register typed event handlers (async callbacks)
 
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::{RwLock, broadcast};
+use tokio::sync::{broadcast, RwLock};
 
 use crate::scheduler::trigger::EventType;
 

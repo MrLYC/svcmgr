@@ -126,16 +126,17 @@ impl ProxyService {
         // 1. 尝试匹配 host + path
         if let Some(host) = host {
             for route in routes {
-                if let (Some(route_host), Some(route_path)) = (&route.host, &route.path)
-                    && route_host == host
-                    && Self::path_matches(path, route_path)
-                    && let Some(backend_ref) = &route.backend
-                    && let Some(backend) = registry.services.get(backend_ref)
-                {
-                    return Some(RouteMatch {
-                        route,
-                        backend: backend.clone(),
-                    });
+                if let (Some(route_host), Some(route_path)) = (&route.host, &route.path) {
+                    if route_host == host && Self::path_matches(path, route_path) {
+                        if let Some(backend_ref) = &route.backend {
+                            if let Some(backend) = registry.services.get(backend_ref) {
+                                return Some(RouteMatch {
+                                    route,
+                                    backend: backend.clone(),
+                                });
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -143,15 +144,15 @@ impl ProxyService {
         // 2. 尝试匹配 host only
         if let Some(host) = host {
             for route in routes {
-                if route.host.as_deref() == Some(host)
-                    && route.path.is_none()
-                    && let Some(backend_ref) = &route.backend
-                    && let Some(backend) = registry.services.get(backend_ref)
-                {
-                    return Some(RouteMatch {
-                        route,
-                        backend: backend.clone(),
-                    });
+                if route.host.as_deref() == Some(host) && route.path.is_none() {
+                    if let Some(backend_ref) = &route.backend {
+                        if let Some(backend) = registry.services.get(backend_ref) {
+                            return Some(RouteMatch {
+                                route,
+                                backend: backend.clone(),
+                            });
+                        }
+                    }
                 }
             }
         }
@@ -160,18 +161,21 @@ impl ProxyService {
         let mut best_match: Option<(usize, &RouteConfig, Backend)> = None;
 
         for route in routes {
-            if route.host.is_none()
-                && let Some(route_path) = &route.path
-                && Self::path_matches(path, route_path)
-                && let Some(backend_ref) = &route.backend
-                && let Some(backend) = registry.services.get(backend_ref)
-            {
-                let match_len = route_path.trim_end_matches('*').len();
-                if best_match
-                    .as_ref()
-                    .is_none_or(|(len, _, _)| match_len > *len)
-                {
-                    best_match = Some((match_len, route, backend.clone()));
+            if route.host.is_none() {
+                if let Some(route_path) = &route.path {
+                    if Self::path_matches(path, route_path) {
+                        if let Some(backend_ref) = &route.backend {
+                            if let Some(backend) = registry.services.get(backend_ref) {
+                                let match_len = route_path.trim_end_matches('*').len();
+                                if best_match
+                                    .as_ref()
+                                    .is_none_or(|(len, _, _)| match_len > *len)
+                                {
+                                    best_match = Some((match_len, route, backend.clone()));
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -237,10 +241,10 @@ impl ProxyService {
 
         // 复制原始请求的其他头 (除了 Host, 它会自动设置)
         for (name, value) in req.headers() {
-            if name != "host"
-                && let Ok(value_str) = value.to_str()
-            {
-                reqwest_req = reqwest_req.header(name.as_str(), value_str);
+            if name != "host" {
+                if let Ok(value_str) = value.to_str() {
+                    reqwest_req = reqwest_req.header(name.as_str(), value_str);
+                }
             }
         }
 
@@ -309,16 +313,18 @@ impl ProxyService {
         let mut path = uri.path().to_string();
 
         // 如果需要去除前缀
-        if strip_prefix && let Some(prefix) = route_path {
-            let prefix = prefix.trim_end_matches('*');
-            if path.starts_with(prefix) {
-                path = path[prefix.len()..].to_string();
-                // 确保路径始终以 / 开头
-                if !path.starts_with('/') {
-                    path = format!("/{}", path);
-                }
-                if path.is_empty() {
-                    path = "/".to_string();
+        if strip_prefix {
+            if let Some(prefix) = route_path {
+                let prefix = prefix.trim_end_matches('*');
+                if path.starts_with(prefix) {
+                    path = path[prefix.len()..].to_string();
+                    // 确保路径始终以 / 开头
+                    if !path.starts_with('/') {
+                        path = format!("/{}", path);
+                    }
+                    if path.is_empty() {
+                        path = "/".to_string();
+                    }
                 }
             }
         }

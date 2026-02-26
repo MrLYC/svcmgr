@@ -65,55 +65,43 @@ mod tests {
 
         assert!(handler.handle(&EventType::SystemInit).await.is_ok());
         assert!(handler.handle(&EventType::SystemShutdown).await.is_ok());
-        assert!(
-            handler
-                .handle(&EventType::TaskStart {
-                    task_name: "test".to_string()
-                })
-                .await
-                .is_ok()
-        );
-        assert!(
-            handler
-                .handle(&EventType::TaskExit {
-                    task_name: "test".to_string(),
-                    exit_code: Some(0)
-                })
-                .await
-                .is_ok()
-        );
-        assert!(
-            handler
-                .handle(&EventType::ConfigChanged {
-                    path: "/test/path".to_string()
-                })
-                .await
-                .is_ok()
-        );
-        assert!(
-            handler
-                .handle(&EventType::Custom {
-                    name: "custom_event".to_string()
-                })
-                .await
-                .is_ok()
-        );
-        assert!(
-            handler
-                .handle(&EventType::TaskUnhealthy {
-                    task_name: "test".to_string(),
-                    consecutive_failures: 3
-                })
-                .await
-                .is_ok()
-        );
-        assert!(
-            handler
-                .handle(&EventType::TaskHealthy {
-                    task_name: "test".to_string()
-                })
-                .await
-                .is_ok()
-        );
+        assert!(handler
+            .handle(&EventType::TaskStart {
+                task_name: "test".to_string()
+            })
+            .await
+            .is_ok());
+        assert!(handler
+            .handle(&EventType::TaskExit {
+                task_name: "test".to_string(),
+                exit_code: Some(0)
+            })
+            .await
+            .is_ok());
+        assert!(handler
+            .handle(&EventType::ConfigChanged {
+                path: "/test/path".to_string()
+            })
+            .await
+            .is_ok());
+        assert!(handler
+            .handle(&EventType::Custom {
+                name: "custom_event".to_string()
+            })
+            .await
+            .is_ok());
+        assert!(handler
+            .handle(&EventType::TaskUnhealthy {
+                task_name: "test".to_string(),
+                consecutive_failures: 3
+            })
+            .await
+            .is_ok());
+        assert!(handler
+            .handle(&EventType::TaskHealthy {
+                task_name: "test".to_string()
+            })
+            .await
+            .is_ok());
     }
 }

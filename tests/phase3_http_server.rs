@@ -71,12 +71,10 @@ async fn test_404_error_format() {
     let body: serde_json::Value = resp.json().await.unwrap();
     assert!(body["error"].is_object());
     assert_eq!(body["error"]["code"], "RESOURCE_NOT_FOUND");
-    assert!(
-        body["error"]["message"]
-            .as_str()
-            .unwrap()
-            .contains("/nonexistent")
-    );
+    assert!(body["error"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("/nonexistent"));
 }
 
 /// 测试 API 错误类型转换为正确的 HTTP 状态码

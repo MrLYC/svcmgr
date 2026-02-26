@@ -361,12 +361,11 @@ impl TunnelManager {
         // Tunnel credentials written to /home/user/.cloudflared/xxx-xxx-xxx.json. cloudflared chose this file based on where your origin certificate was found. Keep this file secret. To revoke these credentials, delete the tunnel.
         // Created tunnel my-tunnel with id xxx-xxx-xxx
         for line in output.lines() {
-            if line.contains("Created tunnel")
-                && line.contains("with id")
-                && let Some(id_start) = line.rfind("with id ")
-            {
-                let id = line[id_start + 8..].trim();
-                return Ok(id.to_string());
+            if line.contains("Created tunnel") && line.contains("with id") {
+                if let Some(id_start) = line.rfind("with id ") {
+                    let id = line[id_start + 8..].trim();
+                    return Ok(id.to_string());
+                }
             }
         }
 
@@ -646,13 +645,13 @@ impl TunnelAtom for TunnelManager {
 
         let mut routes = Vec::new();
         for line in output.lines() {
-            if (line.contains(&tunnel_info.id) || line.contains(&tunnel_info.name))
-                && let Some(hostname) = line.split("->").next()
-            {
-                routes.push(DnsRoute {
-                    hostname: hostname.trim().to_string(),
-                    tunnel_id: tunnel_info.id.clone(),
-                });
+            if line.contains(&tunnel_info.id) || line.contains(&tunnel_info.name) {
+                if let Some(hostname) = line.split("->").next() {
+                    routes.push(DnsRoute {
+                        hostname: hostname.trim().to_string(),
+                        tunnel_id: tunnel_info.id.clone(),
+                    });
+                }
             }
         }
 

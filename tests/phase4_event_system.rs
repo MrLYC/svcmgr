@@ -13,8 +13,8 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 use svcmgr::events::{EventBus, EventHandler};
 use svcmgr::scheduler::engine::{Execution, ScheduledTask, SchedulerEngine};
