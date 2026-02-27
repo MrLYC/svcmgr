@@ -150,17 +150,10 @@ async fn get_task(
     let config_port = &state.config_port;
 
     // 获取任务命令
-    let task_cmd = config_port
-        .get_task_command(&id_or_name)
-        .await
-        .map_err(|e| {
-            // 检查是否为任务不存在错误
-            if e.to_string().to_lowercase().contains("not found") {
-                ApiError::not_found(format!("Task '{}'", id_or_name))
-            } else {
-                ApiError::internal_error(e.to_string())
-            }
-        })?;
+    let task_cmd = config_port.get_task_command(&id_or_name).await.map_err(|e| {
+        // Skeleton 阶段：返回 NOT_IMPLEMENTED 错误
+        ApiError::new("NOT_IMPLEMENTED", e.to_string())
+    })?;
 
     // 构造 TaskDefinition
     let task_def = TaskDefinition {
