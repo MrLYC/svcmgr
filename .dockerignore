@@ -1,0 +1,47 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# CI/CD
+.github
+
+# Documentation
+*.md
+docs/
+openspec/
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Rust
+target/
+**/*.rs.bk
+Cargo.lock
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Frontend build artifacts
+src/frontend/dist/
+src/frontend/.vite/
+src/frontend/.turbo/
+
+# Tests
+tests/
+docker/integration-tests/
+
+# Misc
+.DS_Store
+*.log
+.env
+.env.local
+.env.*.local

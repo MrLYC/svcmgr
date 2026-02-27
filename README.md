@@ -18,6 +18,32 @@ svcmgr setup
 svcmgr --help
 ```
 
+### 使用 Docker 🐳
+
+```bash
+# 拉取最新镜像
+docker pull <your-dockerhub-username>/svcmgr:latest
+
+# 运行容器
+docker run -d \
+  --name svcmgr \
+  -p 8080:8080 \
+  -v svcmgr-data:/home/svcmgr/.local/share/svcmgr \
+  <your-dockerhub-username>/svcmgr:latest
+
+# 查看日志
+docker logs -f svcmgr
+
+# 进入容器
+docker exec -it svcmgr bash
+```
+
+**Docker 镜像标签**:
+- `latest` - 最新的 main 分支构建
+- `develop` - 开发分支构建
+- `v1.0.0` - 语义化版本标签
+- `main-<sha>` - 特定提交的构建
+
 ## 📋 功能特性
 
 ### Phase 1 (已完成) ✅
