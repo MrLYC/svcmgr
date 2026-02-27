@@ -1,0 +1,57 @@
+# Cargo 构建配置优化
+
+[build]
+# 限制并行任务数,避免内存压力导致 LLVM panic
+jobs = 1
+
+# 增量编译(默认启用,这里显式声明)
+# 加速重复编译,代价是初次编译稍慢和占用更多磁盘
+incremental = true
+
+# 使用更快的链接器 (Linux)
+[target.x86_64-unknown-linux-gnu]
+# 选项 1: 使用系统已安装的 gold 链接器 (比默认 ld 快 30-50%)
+rustflags = ["-C", "link-arg=-fuse-ld=gold"]
+
+# 选项 2: 使用 lld (需要安装 lld,比 gold 更快 2-3 倍)
+# 安装命令: sudo apt install lld clang
+# 取消注释下面两行启用:
+# linker = "clang"
+# rustflags = ["-C", "link-arg=-fuse-ld=lld", "-C", "split-debuginfo=unpacked"]
+
+# 选项 3: 使用 mold (最快,需要安装,比 lld 快 1.5-2 倍)
+# 安装命令: sudo apt install mold
+# 取消注释下面一行启用:
+# rustflags = ["-C", "link-arg=-fuse-ld=mold", "-C", "split-debuginfo=unpacked"]
+
+# 开发环境优化配置
+[profile.dev]
+# 增量编译(默认启用)
+incremental = true
+# 不优化代码,编译最快
+opt-level = 0
+# 保留部分调试信息,但减少符号表大小
+debug = 1  # 只保留行号信息,不保留完整符号表 (debug = 2 是完整符号表)
+# 不进行 LTO (Link Time Optimization),加速链接
+lto = false
+# 不进行代码生成单元合并,加速并行编译
+codegen-units = 256  # 默认是 256,允许最大并行度
+
+# 发布环境优化配置(保持性能优先)
+[profile.release]
+opt-level = 3
+debug = false
+lto = "thin"  # thin LTO 比 full LTO 快,但仍提供优化
+codegen-units = 16  # 减少以获得更好优化,但编译稍慢
+strip = true  # 剥离符号表,减少二进制大小
+
+# 测试环境配置 (继承 dev,但可以独立调整)
+[profile.test]
+inherits = "dev"
+# 对依赖库启用少量优化,加速测试执行(不影响我们代码的编译速度)
+opt-level = 0
+
+# 依赖包编译优化 (不影响主项目增量编译)
+# 只编译一次,后续复用,所以可以启用优化加速运行时
+[profile.dev.package."*"]
+opt-level = 2  # 对依赖启用优化,加速运行时,不影响增量编译

@@ -1,0 +1,14 @@
+[[http.routes]]
+path = "/api"
+target = "service:api:http"
+strip_prefix = false
+
+[[http.routes]]
+path = "/static"
+static_dir = "./public"
+index = ["index.html"]
+
+[[http.routes]]
+path = "/ws"
+target = "service:websocket:8080"
+websocket = true

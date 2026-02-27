@@ -1,234 +1,246 @@
-use crate::atoms::{LogOptions, TemplateContext, TransientOptions};
-use crate::cli::ServiceAction;
-use crate::error::Result;
-use crate::features::{ServiceConfig, SystemdServiceManager};
+//! Service lifecycle management commands
+//!
+//! Phase 1.4: Process management with logging
+//! - start: Start a service with log redirection
+//! - stop: Stop a running service
+//! - list: List all services and their status
 
-pub async fn handle_service_command(action: ServiceAction) -> Result<()> {
-    let manager = SystemdServiceManager::default_config()?;
+use crate::config::models::SvcmgrConfig;
+use crate::runtime::ProcessHandle;
+use anyhow::{Context, Result};
+use std::collections::HashMap;
+use std::fs;
+use std::path::PathBuf;
+use tokio::process::Command;
+/// Start a service
+///
+/// Phase 1.4 implementation: Run service with ProcessHandle
+/// - Executes mise task if run_mode="mise"
+/// - Executes direct command if run_mode="script"
+/// - Records PID to ~/.config/svcmgr/pids/<service>.pid
+/// - Redirects stdout/stderr to ~/.local/share/svcmgr/logs/<service>.{stdout,stderr}.log
+pub async fn start(service_name: &str, config: &SvcmgrConfig) -> Result<()> {
+    // Find service in config
+    let service = config
+        .services
+        .get(service_name)
+        .with_context(|| format!("Service '{}' not found in configuration", service_name))?;
 
-    match action {
-        ServiceAction::List => list_services(&manager).await,
-        ServiceAction::Add {
-            name,
-            template,
-            var,
-        } => add_service(&manager, name, template, var).await,
-        ServiceAction::Status { name } => show_status(&manager, name).await,
-        ServiceAction::Start { name } => start_service(&manager, name).await,
-        ServiceAction::Stop { name } => stop_service(&manager, name).await,
-        ServiceAction::Restart { name } => restart_service(&manager, name).await,
-        ServiceAction::Enable { name } => enable_service(&manager, name).await,
-        ServiceAction::Disable { name } => disable_service(&manager, name).await,
-        ServiceAction::Logs {
-            name,
-            lines,
-            follow,
-        } => show_logs(&manager, name, lines, follow).await,
-        ServiceAction::Remove { name, force } => remove_service(&manager, name, force).await,
-        ServiceAction::Run { command, workdir } => run_transient(&manager, command, workdir).await,
+    // Check if service is enabled
+    if !service.enable {
+        anyhow::bail!(
+            "Service '{}' is disabled. Set enable=true in config to start it.",
+            service_name
+        );
+    }
+
+    // Check if already running
+    let pid_file = get_pid_file(service_name)?;
+    if pid_file.exists() {
+        let pid = fs::read_to_string(&pid_file)?;
+        if is_process_running(&pid) {
+            anyhow::bail!(
+                "Service '{}' is already running (PID: {})",
+                service_name,
+                pid.trim()
+            );
+        } else {
+            // Stale PID file, remove it
+            fs::remove_file(&pid_file)?;
+        }
+    }
+
+    println!("🚀 Starting service '{}'...", service_name);
+    // Prepare log directory
+    let log_dir = dirs::data_local_dir()
+        .context("Cannot determine data directory")?
+        .join("svcmgr/logs");
+    fs::create_dir_all(&log_dir)
+        .with_context(|| format!("Failed to create log directory: {}", log_dir.display()))?;
+
+    // Build command based on run_mode
+    let command: Vec<String> = match service.run_mode {
+        crate::config::models::RunMode::Mise => {
+            let task_name = service.task.as_ref().with_context(|| {
+                format!(
+                    "Service '{}' uses run_mode='mise' but 'task' is not specified",
+                    service_name
+                )
+            })?;
+            vec!["mise".to_string(), "run".to_string(), task_name.clone()]
+        }
+        crate::config::models::RunMode::Script => {
+            let cmd = service.command.as_ref().with_context(|| {
+                format!(
+                    "Service '{}' uses run_mode='script' but 'command' is not specified",
+                    service_name
+                )
+            })?;
+            // Parse command (simple split by whitespace - not shell-aware)
+            let parts: Vec<&str> = cmd.split_whitespace().collect();
+            if parts.is_empty() {
+                anyhow::bail!("Service '{}' has empty command", service_name);
+            }
+            parts.iter().map(|s| s.to_string()).collect()
+        }
+    };
+
+    // Prepare environment variables
+    let env_vars: HashMap<String, String> = service.env.clone();
+
+    // Prepare working directory
+    let workdir = service.workdir.clone();
+
+    // Spawn process using ProcessHandle
+    let handle = ProcessHandle::spawn(service_name, &command, env_vars, workdir, log_dir.clone())
+        .await
+        .with_context(|| format!("Failed to start service '{}'", service_name))?;
+    let pid = handle.pid();
+    fs::write(&pid_file, pid.to_string())
+        .with_context(|| format!("Failed to write PID file: {}", pid_file.display()))?;
+
+    println!("✅ Service '{}' started (PID: {})", service_name, pid);
+    println!("   PID file: {}", pid_file.display());
+    println!("   Logs: {}/{}.stdout.log", log_dir.display(), service_name);
+    println!("        {}/{}.stderr.log", log_dir.display(), service_name);
+
+    // Wait for process to complete (foreground mode - Phase 1.3 compatibility)
+    let exit_code = handle
+        .wait_for_exit()
+        .await
+        .with_context(|| format!("Failed to wait for service '{}'", service_name))?;
+    if pid_file.exists() {
+        fs::remove_file(&pid_file)?;
+    }
+
+    if exit_code == 0 {
+        println!("✅ Service '{}' exited successfully", service_name);
+        Ok(())
+    } else {
+        anyhow::bail!("Service '{}' exited with code: {}", service_name, exit_code);
     }
 }
+/// Stop a running service
+///
+/// Reads PID from ~/.config/svcmgr/pids/<service>.pid and sends SIGTERM
+pub async fn stop(service_name: &str) -> Result<()> {
+    let pid_file = get_pid_file(service_name)?;
 
-async fn list_services(manager: &SystemdServiceManager) -> Result<()> {
-    let services = manager.list_services().await?;
+    if !pid_file.exists() {
+        anyhow::bail!(
+            "Service '{}' is not running (no PID file found)",
+            service_name
+        );
+    }
 
-    if services.is_empty() {
-        println!("No managed services found.");
+    let pid = fs::read_to_string(&pid_file)
+        .with_context(|| format!("Failed to read PID file: {}", pid_file.display()))?;
+    let pid = pid.trim();
+
+    if !is_process_running(pid) {
+        println!(
+            "⚠️  Service '{}' PID file exists but process is not running",
+            service_name
+        );
+        fs::remove_file(&pid_file)?;
+        anyhow::bail!("Service '{}' is not running", service_name);
+    }
+
+    println!("🛑 Stopping service '{}' (PID: {})...", service_name, pid);
+
+    // Send SIGTERM using kill command
+    let output = Command::new("kill")
+        .arg("-TERM")
+        .arg(pid)
+        .output()
+        .await
+        .context("Failed to execute 'kill' command")?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        anyhow::bail!("Failed to stop service '{}': {}", service_name, stderr);
+    }
+
+    // Wait briefly for process to exit
+    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+
+    // Check if process is still running
+    if is_process_running(pid) {
+        println!(
+            "⚠️  Service '{}' did not stop gracefully. You may need to use 'kill -9 {}'.",
+            service_name, pid
+        );
+    } else {
+        // Clean up PID file
+        if pid_file.exists() {
+            fs::remove_file(&pid_file)?;
+        }
+        println!("✅ Service '{}' stopped successfully", service_name);
+    }
+
+    Ok(())
+}
+
+/// List all services and their status
+///
+/// Shows service name, enabled status, and running status (based on PID file)
+pub async fn list(config: &SvcmgrConfig) -> Result<()> {
+    if config.services.is_empty() {
+        println!("No services configured.");
         return Ok(());
     }
 
-    println!(
-        "{:<30} {:<15} {:<10} DESCRIPTION",
-        "NAME", "STATUS", "ENABLED"
-    );
-    println!("{}", "-".repeat(80));
+    println!("\n{:<20} {:<10} {:<10}", "SERVICE", "ENABLED", "STATUS");
+    println!("{}", "-".repeat(42));
 
-    for service in services {
-        let status = if service.active { "active" } else { "inactive" };
-        let enabled = if service.enabled {
+    for (name, service) in &config.services {
+        let enabled_str = if service.enable {
             "enabled"
         } else {
             "disabled"
         };
-        println!(
-            "{:<30} {:<15} {:<10} {}",
-            service.name, status, enabled, service.description
-        );
+
+        let status_str = if let Ok(pid_file) = get_pid_file(name) {
+            if pid_file.exists() {
+                if let Ok(pid) = fs::read_to_string(&pid_file) {
+                    if is_process_running(pid.trim()) {
+                        format!("running ({})", pid.trim())
+                    } else {
+                        "stopped (stale PID)".to_string()
+                    }
+                } else {
+                    "stopped".to_string()
+                }
+            } else {
+                "stopped".to_string()
+            }
+        } else {
+            "unknown".to_string()
+        };
+
+        println!("{:<20} {:<10} {}", name, enabled_str, status_str);
     }
 
+    println!();
     Ok(())
 }
 
-async fn add_service(
-    manager: &SystemdServiceManager,
-    name: String,
-    template: String,
-    variables: Vec<(String, String)>,
-) -> Result<()> {
-    let mut context = TemplateContext::new();
-    for (key, value) in variables {
-        context.insert(&key, value);
-    }
+// Helper functions
 
-    let config = ServiceConfig {
-        name: name.clone(),
-        template,
-        variables: context,
-    };
-
-    manager.create_service(&config).await?;
-    println!("Service {} created successfully.", name);
-    println!("Use 'svcmgr service start {}' to start the service.", name);
-
-    Ok(())
+/// Get PID file path for a service
+fn get_pid_file(service_name: &str) -> Result<PathBuf> {
+    let pid_dir = dirs::config_dir()
+        .context("Cannot determine config directory")?
+        .join("svcmgr/pids");
+    Ok(pid_dir.join(format!("{}.pid", service_name)))
 }
 
-async fn show_status(manager: &SystemdServiceManager, name: String) -> Result<()> {
-    let status = manager.get_status(&name).await?;
-
-    println!("\n=== Service Status: {} ===", name);
-    println!("Active: {:?}", status.active_state);
-    println!("Running: {}", status.sub_state);
-    println!(
-        "Main PID: {}",
-        status
-            .pid
-            .map(|p| p.to_string())
-            .unwrap_or_else(|| "N/A".to_string())
-    );
-
-    if let Some(memory) = status.memory {
-        println!("Memory: {} bytes", memory);
-    }
-
-    if let Some(started) = status.started_at {
-        println!("Started at: {}", started.to_rfc3339());
-    }
-
-    if !status.recent_logs.is_empty() {
-        println!("\nRecent logs:");
-        for log in &status.recent_logs {
-            println!("  {}", log);
-        }
-    }
-
-    Ok(())
-}
-
-async fn start_service(manager: &SystemdServiceManager, name: String) -> Result<()> {
-    manager.start_service(&name).await?;
-    println!("Service {} started.", name);
-    Ok(())
-}
-
-async fn stop_service(manager: &SystemdServiceManager, name: String) -> Result<()> {
-    manager.stop_service(&name).await?;
-    println!("Service {} stopped.", name);
-    Ok(())
-}
-
-async fn restart_service(manager: &SystemdServiceManager, name: String) -> Result<()> {
-    manager.restart_service(&name).await?;
-    println!("Service {} restarted.", name);
-    Ok(())
-}
-
-async fn enable_service(manager: &SystemdServiceManager, name: String) -> Result<()> {
-    manager.enable_service(&name).await?;
-    println!("Service {} enabled (will start on boot).", name);
-    Ok(())
-}
-
-async fn disable_service(manager: &SystemdServiceManager, name: String) -> Result<()> {
-    manager.disable_service(&name).await?;
-    println!("Service {} disabled (will not start on boot).", name);
-    Ok(())
-}
-
-async fn show_logs(
-    manager: &SystemdServiceManager,
-    name: String,
-    lines: usize,
-    follow: bool,
-) -> Result<()> {
-    if follow {
-        println!("Following logs for {} (Ctrl+C to stop)...", name);
-        return Err(crate::error::Error::NotSupported(
-            "Log following not yet implemented".to_string(),
-        ));
-    }
-
-    let options = LogOptions {
-        since: None,
-        until: None,
-        lines: Some(lines),
-        priority: None,
-    };
-
-    let logs: Vec<crate::atoms::LogEntry> = manager.get_logs(&name, &options).await?;
-
-    if logs.is_empty() {
-        println!("No logs found for service {}", name);
-    } else {
-        for log in logs {
-            println!("{} [{:?}] {}", log.timestamp, log.priority, log.message);
-        }
-    }
-
-    Ok(())
-}
-
-async fn remove_service(manager: &SystemdServiceManager, name: String, force: bool) -> Result<()> {
-    if !force {
-        print!("Are you sure you want to remove service {}? [y/N] ", name);
-        use std::io::{self, Write};
-        io::stdout().flush().unwrap();
-
-        let mut input = String::new();
-        io::stdin().read_line(&mut input).unwrap();
-
-        if !input.trim().eq_ignore_ascii_case("y") {
-            println!("Aborted.");
-            return Ok(());
-        }
-    }
-
-    manager.stop_service(&name).await.ok();
-
-    manager.delete_service(&name).await?;
-    println!("Service {} removed.", name);
-
-    Ok(())
-}
-
-async fn run_transient(
-    manager: &SystemdServiceManager,
-    command: Vec<String>,
-    workdir: Option<String>,
-) -> Result<()> {
-    if command.is_empty() {
-        return Err(crate::error::Error::InvalidArgument(
-            "Command cannot be empty".to_string(),
-        ));
-    }
-
-    let options = TransientOptions {
-        name: format!("svcmgr-run-{}", std::process::id()),
-        command,
-        scope: true,
-        remain_after_exit: false,
-        collect: true,
-        env: std::collections::HashMap::new(),
-        working_directory: workdir.map(std::path::PathBuf::from),
-    };
-
-    let unit = manager.run_transient(&options).await?;
-    println!("Transient service started:");
-    println!("  Unit: {}", unit.name);
-    if let Some(pid) = unit.pid {
-        println!("  PID: {}", pid);
-    }
-    println!("\nUse 'systemctl --user status {}' to monitor.", unit.name);
-
-    Ok(())
+/// Check if a process with given PID is running
+fn is_process_running(pid: &str) -> bool {
+    std::process::Command::new("kill")
+        .arg("-0")
+        .arg(pid)
+        .output()
+        .map(|output| output.status.success())
+        .unwrap_or(false)
 }

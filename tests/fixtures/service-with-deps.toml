@@ -1,0 +1,15 @@
+[services.db]
+task = "postgres"
+enable = true
+restart = "always"
+
+[services.redis]
+task = "redis-server"
+enable = true
+restart = "always"
+
+[services.app]
+task = "web-app"
+enable = true
+depends = ["db", "redis"]
+restart = "on-failure"

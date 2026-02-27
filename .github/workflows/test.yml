@@ -1,0 +1,116 @@
+name: Tests
+
+on:
+  push:
+    branches: [ '**' ]
+  pull_request:
+    branches: [ '**' ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: rustfmt, clippy
+        
+    - name: Cache cargo registry
+      uses: actions/cache@v4
+      with:
+        path: ~/.cargo/registry
+        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+        
+    - name: Cache cargo index
+      uses: actions/cache@v4
+      with:
+        path: ~/.cargo/git
+        key: ${{ runner.os }}-cargo-git-${{ hashFiles('**/Cargo.lock') }}
+        
+    - name: Cache cargo build
+      uses: actions/cache@v4
+      with:
+        path: target
+        key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+        
+    - name: Install mise
+      run: |
+        curl https://mise.run | sh
+        echo "$HOME/.local/bin" >> $GITHUB_PATH
+        
+    - name: Verify mise installation
+      run: mise --version
+      
+    - name: Check formatting
+      run: cargo fmt -- --check
+      
+    - name: Run clippy
+      run: cargo clippy -- -D warnings
+      
+    - name: Run unit tests
+      run: cargo test --lib --verbose
+      
+    - name: Run integration tests
+      run: cargo test --test '*' --verbose
+      
+    - name: Install tarpaulin (code coverage)
+      run: cargo install cargo-tarpaulin
+      
+    - name: Generate code coverage
+      run: |
+        cargo tarpaulin --out Xml --output-dir ./coverage --verbose
+        
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        files: ./coverage/cobertura.xml
+        fail_ci_if_error: false
+        
+    - name: Check coverage thresholds
+      run: |
+        # Generate coverage and capture text output
+        OUTPUT=$(cargo tarpaulin --out Json --output-dir ./coverage 2>&1)
+        echo "$OUTPUT"
+        
+        # Parse total coverage percentage from tarpaulin output
+        COVERAGE=$(echo "$OUTPUT" | grep -oP '\d+\.\d+(?=% coverage)' | head -1)
+        
+        if [ -z "$COVERAGE" ]; then
+          echo "❌ Failed to parse coverage percentage"
+          exit 1
+        fi
+        
+        echo "Coverage: $COVERAGE%"
+        if (( $(echo "$COVERAGE < 50" | bc -l) )); then
+          echo "❌ Coverage $COVERAGE% is below 50% threshold"
+          exit 1
+        fi
+        echo "✅ Coverage $COVERAGE% meets threshold"
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      
+    - name: Build release binary
+      run: cargo build --release --verbose
+      
+    - name: Upload binary artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: svcmgr-binary
+        path: target/release/svcmgr

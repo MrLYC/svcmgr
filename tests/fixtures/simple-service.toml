@@ -1,0 +1,9 @@
+[services.web]
+task = "dev-server"
+enable = true
+restart = "always"
+
+[services.web.health_check]
+enabled = true
+http_path = "/health"
+interval_secs = 30
