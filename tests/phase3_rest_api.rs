@@ -148,10 +148,10 @@ async fn test_tasks_get_not_found() {
         .await
         .unwrap();
 
-    assert_eq!(resp.status(), 500); // Skeleton阶段: 无数据库,无法判断资源是否存在
+    assert_eq!(resp.status(), 404); // 任务不存在返回 404
 
     let body: serde_json::Value = resp.json().await.unwrap();
-    assert_eq!(body["error"]["code"], "NOT_IMPLEMENTED"); // Skeleton阶段返回 NOT_IMPLEMENTED
+    assert_eq!(body["error"]["code"], "RESOURCE_NOT_FOUND"); // 资源不存在
 }
 
 #[tokio::test]
