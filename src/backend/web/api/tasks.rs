@@ -103,26 +103,68 @@ async fn list_tasks(
     }))
 }
 
-/// GET /api/v1/tasks/{name} - 获取任务详情
+/// POST /api/v1/tasks - 创建并立即执行任务
+#[derive(Debug, Deserialize)]
+pub struct CreateImmediateTaskRequest {
+    pub command: String,
+    #[serde(default)]
+    pub args: Vec<String>,
+}
+
+async fn create_immediate_task(
+    State(state): State<AppState>,
+    Json(req): Json<CreateImmediateTaskRequest>,
+) -> Result<Json<ApiResponse<ImmediateTaskState>>, ApiError> {
+    // 创建并执行任务
+    let task_id = state.task_executor.create_task(req.command, req.args).await;
+
+    // 获取任务状态
+    let task_state = state
+        .task_executor
+        .get_task(&task_id)
+        .await
+        .ok_or_else(|| ApiError::internal_error("Failed to create task"))?;
+
+    Ok(Json(ApiResponse {
+        data: task_state,
+        pagination: None,
+    }))
+}
+
+/// GET /api/v1/tasks/{id_or_name} - 获取任务详情（即时任务或 mise 任务）
 async fn get_task(
     State(state): State<AppState>,
-    Path(name): Path<String>,
-) -> Result<Json<ApiResponse<TaskDefinition>>, ApiError> {
+    Path(id_or_name): Path<String>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, ApiError> {
+    // 先尝试作为 UUID 查询即时任务
+    if Uuid::parse_str(&id_or_name).is_ok() {
+        if let Some(task_state) = state.task_executor.get_task(&id_or_name).await {
+            return Ok(Json(ApiResponse {
+                data: serde_json::to_value(task_state).unwrap(),
+                pagination: None,
+            }));
+        }
+    }
+
+    // 否则作为 name 查询 mise 任务
     let config_port = &state.config_port;
 
     // 获取任务命令
-    let task_cmd = config_port.get_task_command(&name).await.map_err(|e| {
-        // 检查是否为任务不存在错误
-        if e.to_string().to_lowercase().contains("not found") {
-            ApiError::not_found(format!("Task '{}'", name))
-        } else {
-            ApiError::internal_error(e.to_string())
-        }
-    })?;
+    let task_cmd = config_port
+        .get_task_command(&id_or_name)
+        .await
+        .map_err(|e| {
+            // 检查是否为任务不存在错误
+            if e.to_string().to_lowercase().contains("not found") {
+                ApiError::not_found(format!("Task '{}'", id_or_name))
+            } else {
+                ApiError::internal_error(e.to_string())
+            }
+        })?;
 
     // 构造 TaskDefinition
     let task_def = TaskDefinition {
-        name: name.clone(),
+        name: id_or_name.clone(),
         run: task_cmd.command,
         description: None,
         env: task_cmd.env,
@@ -134,7 +176,7 @@ async fn get_task(
     };
 
     Ok(Json(ApiResponse {
-        data: task_def,
+        data: serde_json::to_value(task_def).unwrap(),
         pagination: None,
     }))
 }
@@ -166,16 +208,27 @@ async fn run_task(
     }))
 }
 
-/// POST /api/v1/tasks/{name}/cancel - 取消正在运行的任务
+/// POST /api/v1/tasks/{id_or_name}/cancel - 取消正在运行的任务（即时任务或 mise 任务）
 async fn cancel_task(
     State(state): State<AppState>,
-    Path(execution_id): Path<String>,
+    Path(id_or_name): Path<String>,
 ) -> Result<StatusCode, ApiError> {
+    // 先尝试作为 UUID 取消即时任务
+    if Uuid::parse_str(&id_or_name).is_ok() {
+        match state.task_executor.cancel_task(&id_or_name).await {
+            Ok(_) => return Ok(StatusCode::NO_CONTENT),
+            Err(_) => {
+                // 如果即时任务不存在，继续尝试 mise 任务
+            }
+        }
+    }
+
+    // 否则作为 execution_id 取消 mise 任务
     let config_port = &state.config_port;
 
     // 调用 TaskPort::cancel_task (MVP: no-op implementation)
     config_port
-        .cancel_task(&execution_id)
+        .cancel_task(&id_or_name)
         .await
         .map_err(|e| ApiError::new("CANCEL_FAILED", format!("Failed to cancel task: {}", e)))?;
 
@@ -596,7 +649,7 @@ async fn run_scheduled_task(
 /// 创建即时任务路由
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/", get(list_tasks))
+        .route("/", get(list_tasks).post(create_immediate_task))
         .route("/:name", get(get_task))
         .route("/:name/run", post(run_task))
         .route("/:name/cancel", post(cancel_task))

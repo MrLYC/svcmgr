@@ -53,19 +53,22 @@ pub struct AppState {
     pub config_port: Arc<dyn ConfigPort>,
     /// 配置文件根目录
     pub config_dir: PathBuf,
+    /// 即时任务执行器
+    pub task_executor: Arc<crate::web::api::task_executor::TaskExecutor>,
 }
-
 impl AppState {
     /// 创建新的应用状态
     pub fn new(
         git_versioning: GitVersioning,
         config_port: Arc<dyn ConfigPort>,
         config_dir: PathBuf,
+        task_executor: Arc<crate::web::api::task_executor::TaskExecutor>,
     ) -> Self {
         Self {
             git_versioning: Arc::new(tokio::sync::Mutex::new(git_versioning)),
             config_port,
             config_dir,
+            task_executor,
         }
     }
 
@@ -95,10 +98,13 @@ impl AppState {
         // 注意:temp_dir会在这里被drop,但git仓库已初始化,测试期间目录仍然存在
         std::mem::forget(temp_dir); // 防止提前删除
 
+        let task_executor = Arc::new(crate::web::api::task_executor::TaskExecutor::new());
+
         Self {
             git_versioning: Arc::new(tokio::sync::Mutex::new(git)),
             config_port,
             config_dir,
+            task_executor,
         }
     }
 }

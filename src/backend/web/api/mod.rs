@@ -11,6 +11,7 @@ pub mod env_handlers;
 pub mod env_models;
 pub mod service_models;
 mod services;
+pub mod task_executor;
 pub mod task_models;
 mod tasks;
 

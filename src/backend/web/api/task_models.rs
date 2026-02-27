@@ -898,3 +898,52 @@ mod tests {
         assert_eq!(exec, exec2);
     }
 }
+
+// ============================================================================
+// 即时任务 (Immediate Task) 数据模型
+// ============================================================================
+
+/// 即时任务状态
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ImmediateTaskStatus {
+    /// 等待执行
+    Pending,
+    /// 执行中
+    Running,
+    /// 成功完成
+    Succeeded,
+    /// 执行失败
+    Failed,
+    /// 已取消
+    Cancelled,
+}
+
+/// 即时任务状态信息
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImmediateTaskState {
+    /// 任务 ID (UUID v4)
+    pub id: String,
+    /// 任务状态
+    pub status: ImmediateTaskStatus,
+    /// 创建时间
+    pub created_at: DateTime<Utc>,
+    /// 开始时间
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub started_at: Option<DateTime<Utc>>,
+    /// 完成时间
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub finished_at: Option<DateTime<Utc>>,
+    /// 退出码
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exit_code: Option<i32>,
+    /// 标准输出
+    #[serde(default)]
+    pub stdout: String,
+    /// 标准错误
+    #[serde(default)]
+    pub stderr: String,
+    /// 错误信息（执行失败或取消时）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
