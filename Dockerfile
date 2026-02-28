@@ -47,7 +47,6 @@ RUN cargo build --release && \
 
 # Copy actual source code
 COPY src/ ./src/
-COPY openspec/ ./openspec/
 
 # Build the actual binary
 RUN cargo build --release --bin svcmgr
