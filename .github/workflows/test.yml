@@ -7,9 +7,9 @@
 name: Tests
 
 on:
-  push:
+  # Disabled - merged into ci.yml
     branches: [ '**' ]
-  pull_request:
+  # Disabled - merged into ci.yml
     branches: [ '**' ]
 
 env:

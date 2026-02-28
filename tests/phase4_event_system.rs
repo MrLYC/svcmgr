@@ -66,6 +66,7 @@ impl LogRecorder {
         self.events.lock().await.clone()
     }
 
+    #[allow(dead_code)]
     async fn clear(&self) {
         self.events.lock().await.clear();
     }
