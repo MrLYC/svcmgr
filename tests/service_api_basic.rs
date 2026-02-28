@@ -2,12 +2,10 @@
 //!
 //! 简化版测试 - 验证核心功能可用性
 
-use std::path::PathBuf;
 use svcmgr::adapters::mock::MockMiseAdapter;
 use svcmgr::mocks::mise::MiseMock;
 use svcmgr::ports::{mise_port::ConfigPort, MiseVersion};
 use svcmgr::web::api::service_models::*;
-use tempfile::TempDir;
 
 // ============================================================================
 // Data Model Tests (5 tests)
