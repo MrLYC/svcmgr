@@ -21,7 +21,7 @@ openspec/
 # Rust
 target/
 **/*.rs.bk
-Cargo.lock
+# Cargo.lock  # Keep for reproducible builds in Docker
 
 # Node
 node_modules/

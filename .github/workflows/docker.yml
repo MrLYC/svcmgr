@@ -1,5 +1,7 @@
 name: Docker Build & Push
 
+# NOTE: On PRs, this workflow only builds the image (no push) to validate Dockerfile.
+# Actual push only happens on main/develop branches, tags, or manual triggers.
 on:
   push:
     branches:

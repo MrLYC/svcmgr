@@ -1,3 +1,9 @@
+# ============================================================
+# DEPRECATED: This workflow has been merged into ci.yml
+# Will be removed after 2026-03-15
+# Please refer to .github/workflows/ci.yml for the new unified CI
+# ============================================================
+
 name: Tests
 
 on:
