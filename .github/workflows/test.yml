@@ -7,10 +7,7 @@
 name: Tests
 
 on:
-  # Disabled - merged into ci.yml
-    branches: [ '**' ]
-  # Disabled - merged into ci.yml
-    branches: [ '**' ]
+  workflow_dispatch:  # Only manual trigger allowed
 
 env:
   CARGO_TERM_COLOR: always
